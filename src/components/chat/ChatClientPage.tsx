@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Paperclip, Send, User } from "lucide-react";
+import { Paperclip, Send, User, MessageSquare } from "lucide-react"; // Added MessageSquare
 import { useAuth } from "@/contexts/AuthContext";
 import type { UserProfile, ChatMessage } from "@/types";
 import { mockUsers, mockChatMessages } from "@/lib/mock-data";
@@ -176,4 +176,3 @@ export function ChatClientPage() {
     </div>
   );
 }
-
