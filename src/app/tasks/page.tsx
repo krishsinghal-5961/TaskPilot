@@ -21,12 +21,12 @@ import { TaskFilterControls } from "@/components/tasks/TaskFilterControls";
 import { TaskActions } from "@/components/tasks/TaskActions";
 import { TaskStatusBadge, TaskPriorityBadge } from "@/components/tasks/TaskBadges";
 import type { Task, TaskStatus, TaskPriority, UserProfile } from "@/types";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, formatISO } from "date-fns"; // Added formatISO
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { mockTasks, mockUsers } from "@/lib/mock-data"; // Using mock data
+import { mockTasks, mockUsers } from "@/lib/mock-data"; 
 import { notifyManagerOfTaskCompletion, checkAndNotifyForDependentTasks, notifyManagerOfProgressChange } from "@/lib/notificationService";
 
 type SortConfig = {
@@ -41,9 +41,9 @@ export default function TasksPage() {
 
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "createdAt", direction: "descending" });
-  const [tasks, setTasks] = useState<Task[]>([]); // Local state for tasks, to be refreshed
-  const [users, setUsers] = useState<UserProfile[]>([]); // Local state for users
-  const [refreshKey, setRefreshKey] = useState(0); // To trigger re-renders
+  const [tasksState, setTasksState] = useState<Task[]>([]); 
+  const [users, setUsers] = useState<UserProfile[]>([]); 
+  const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -52,17 +52,16 @@ export default function TasksPage() {
   }, [currentUser, authLoading, router]);
 
   useEffect(() => {
-    // Load initial data or refresh data when currentUser or refreshKey changes
     if (currentUser) {
       if (currentUser.role === 'manager') {
-        setTasks([...mockTasks]); // Managers see all tasks
+        setTasksState([...mockTasks]); 
         setUsers([...mockUsers]);
       } else {
-        setTasks(mockTasks.filter(task => task.assigneeId === currentUser.uid)); // Employees see their tasks
-        setUsers(mockUsers.filter(u => u.uid === currentUser.uid || u.role === 'manager')); // Employees see themselves and managers for context
+        setTasksState(mockTasks.filter(task => task.assigneeId === currentUser.uid)); 
+        setUsers(mockUsers.filter(u => u.uid === currentUser.uid || u.role === 'manager')); 
       }
-    } else {
-      setTasks([]);
+    } else if (!authLoading) { // Only clear if not loading and no current user
+      setTasksState([]);
       setUsers([]);
     }
   }, [currentUser, refreshKey, authLoading]);
@@ -73,14 +72,14 @@ export default function TasksPage() {
   };
 
   const handleDeleteTask = (taskId: string) => {
-    const taskToDelete = tasks.find(t => t.id === taskId);
+    const taskToDelete = mockTasks.find(t => t.id === taskId);
     if (!taskToDelete) return;
 
     if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.uid )) {
        const taskIndex = mockTasks.findIndex(t => t.id === taskId);
        if (taskIndex !== -1) {
          mockTasks.splice(taskIndex, 1);
-         setRefreshKey(prev => prev + 1); // Trigger re-render
+         setRefreshKey(prev => prev + 1); 
          toast({
            title: "Task Deleted",
            description: `Task "${taskToDelete?.title || 'selected task'}" has been deleted.`,
@@ -103,10 +102,11 @@ export default function TasksPage() {
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.uid) {
       const oldStatus = taskToUpdate.status;
+      const oldProgress = taskToUpdate.progress;
       const progress = status === 'done' ? 100 : (status === 'in-progress' && taskToUpdate.progress === 0 ? 10 : taskToUpdate.progress);
       
       mockTasks[taskIndex] = { ...taskToUpdate, status, progress, updatedAt: formatISO(new Date()) };
-      setRefreshKey(prev => prev + 1); // Trigger re-render
+      setRefreshKey(prev => prev + 1); 
 
       toast({
         title: "Task Updated",
@@ -116,7 +116,7 @@ export default function TasksPage() {
       if (status === 'done' && oldStatus !== 'done') {
         notifyManagerOfTaskCompletion(mockTasks[taskIndex], currentUser?.name);
         checkAndNotifyForDependentTasks(mockTasks[taskIndex]);
-      } else if (status !== oldStatus) {
+      } else if (status !== oldStatus || progress !== oldProgress) { // Notify if status or progress changed
         notifyManagerOfProgressChange(mockTasks[taskIndex], currentUser?.name);
       }
 
@@ -135,12 +135,12 @@ export default function TasksPage() {
   }, [users]);
 
   const filteredTasks = useMemo(() => {
-    let currentTasksToShow = [...tasks]; 
+    let currentTasksToShow = [...tasksState]; 
     
     if (filters.searchTerm) {
       currentTasksToShow = currentTasksToShow.filter(task =>
         task.title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-        task.description?.toLowerCase().includes(filters.searchTerm.toLowerCase())
+        (task.description && task.description.toLowerCase().includes(filters.searchTerm.toLowerCase()))
       );
     }
     if (filters.status && filters.status !== "all") {
@@ -153,7 +153,7 @@ export default function TasksPage() {
       currentTasksToShow = currentTasksToShow.filter(task => task.assigneeId === filters.assignee);
     }
     return currentTasksToShow;
-  }, [tasks, filters, currentUser?.role]); 
+  }, [tasksState, filters, currentUser?.role]); 
   
   const sortedTasks = useMemo(() => {
     let sortableTasks = [...filteredTasks];
@@ -164,7 +164,6 @@ export default function TasksPage() {
           aValue = getUserById(a.assigneeId)?.name || "";
           bValue = getUserById(b.assigneeId)?.name || "";
         } else if (sortConfig.key === "dueDate" || sortConfig.key === "createdAt" || sortConfig.key === "updatedAt") {
-          // Ensure values are comparable numbers or handle null/undefined
           aValue = a[sortConfig.key as keyof Task] ? parseISO(a[sortConfig.key as keyof Task] as string).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
           bValue = b[sortConfig.key as keyof Task] ? parseISO(b[sortConfig.key as keyof Task] as string).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
         } else {
@@ -177,7 +176,7 @@ export default function TasksPage() {
         }
         if (aValue === null || aValue === undefined) aValue = sortConfig.direction === 'ascending' ? Infinity : -Infinity;
         if (bValue === null || bValue === undefined) bValue = sortConfig.direction === 'ascending' ? Infinity : -Infinity;
-
+        
         if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
@@ -203,7 +202,7 @@ export default function TasksPage() {
     </TableHead>
   );
 
-  if (authLoading || !currentUser) {
+  if (authLoading || (!currentUser && !authLoading)) { // Show loader if auth is loading or if no user and not loading (initial state before redirect)
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -226,25 +225,24 @@ export default function TasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={currentUser.role === 'manager' ? "All Tasks" : "My Tasks"}
+        title={currentUser?.role === 'manager' ? "All Tasks" : "My Tasks"}
         description="Manage and track all your project tasks."
         actions={pageActions}
       />
 
       <TaskFilterControls 
         onFilterChange={handleFilterChange} 
-        assignees={currentUser.role === 'manager' ? users.filter(u => u.role === 'employee') : []}
-        isLoadingAssignees={authLoading} // Or a more specific loading state if users were fetched async
+        assignees={currentUser?.role === 'manager' ? users.filter(u => u.role === 'employee') : []}
+        isLoadingAssignees={authLoading && users.length === 0} 
       />
 
       <Card className="shadow-md">
         <CardContent className="p-0">
-           {authLoading && tasks.length === 0 && ( // Show loader if auth is loading and no tasks yet
+           {(authLoading && tasksState.length === 0) && ( 
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
-          {/* No specific tasksError state as we're using mock data for now */}
           {!authLoading && (
           <Table>
             <TableHeader>
@@ -253,7 +251,7 @@ export default function TasksPage() {
                 <SortableHeader sortKey="status">Status</SortableHeader>
                 <SortableHeader sortKey="priority">Priority</SortableHeader>
                 <SortableHeader sortKey="dueDate">Due Date</SortableHeader>
-                {currentUser.role === 'manager' && <SortableHeader sortKey="assigneeName">Assignee</SortableHeader>}
+                {currentUser?.role === 'manager' && <SortableHeader sortKey="assigneeName">Assignee</SortableHeader>}
                 <TableHead>Progress</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -261,7 +259,7 @@ export default function TasksPage() {
             <TableBody>
               {sortedTasks.length > 0 ? sortedTasks.map((task) => {
                 const assignee = getUserById(task.assigneeId);
-                const canModify = currentUser.role === 'manager' || task.assigneeId === currentUser.uid;
+                const canModify = currentUser?.role === 'manager' || task.assigneeId === currentUser?.uid;
                 return (
                   <TableRow key={task.id} className={task.status === 'done' ? 'opacity-60' : ''}>
                     <TableCell className="font-medium">
@@ -272,12 +270,12 @@ export default function TasksPage() {
                     <TableCell><TaskStatusBadge status={task.status} /></TableCell>
                     <TableCell><TaskPriorityBadge priority={task.priority} /></TableCell>
                     <TableCell>{task.dueDate ? format(parseISO(task.dueDate), "MMM dd, yyyy") : "N/A"}</TableCell>
-                    {currentUser.role === 'manager' && (
+                    {currentUser?.role === 'manager' && (
                       <TableCell>
                         {assignee ? (
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6">
-                              <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar" />
+                              <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar"/>
                               <AvatarFallback>{getInitials(assignee.name)}</AvatarFallback>
                             </Avatar>
                             {assignee.name}
@@ -303,7 +301,7 @@ export default function TasksPage() {
                 );
               }) : (
                 <TableRow>
-                  <TableCell colSpan={currentUser.role === 'manager' ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={currentUser?.role === 'manager' ? 7 : 6} className="h-24 text-center text-muted-foreground">
                     No tasks found.
                   </TableCell>
                 </TableRow>
@@ -316,3 +314,4 @@ export default function TasksPage() {
     </div>
   );
 }
+
