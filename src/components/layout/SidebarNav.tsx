@@ -12,6 +12,7 @@ import {
   Users,
   LogIn,
   Loader2,
+  MessageSquare, // Added Chat Icon
 } from "lucide-react";
 import { AppLogo } from "@/components/layout/AppLogo";
 import {
@@ -34,13 +35,14 @@ export function SidebarNav() {
 
   const commonNavItems = [
     { href: "/tasks", label: "Tasks", icon: ListChecks, roles: ["manager", "employee"] },
+    { href: "/chat", label: "Chat", icon: MessageSquare, roles: ["manager", "employee"] }, // Added Chat Link
     { href: "/notifications", label: "Notifications", icon: Bell, roles: ["manager", "employee"] },
   ];
 
   const managerNavItems = [
     { href: "/dashboard/manager", label: "Dashboard", icon: LayoutDashboard, roles: ["manager"] },
     { href: "/assisted-assignment", label: "Assisted Assignment", icon: Wand2, roles: ["manager"] },
-    { href: "/team", label: "Manage Team", icon: Users, roles: ["manager"] }, // Placeholder for future team management
+    { href: "/team", label: "Manage Team", icon: Users, roles: ["manager"] },
   ];
 
   const employeeNavItems = [
@@ -54,6 +56,8 @@ export function SidebarNav() {
     } else {
       navItems = [...employeeNavItems, ...commonNavItems.filter(item => item.roles.includes("employee"))];
     }
+    // Sort common items to be after role-specific items, if desired, or maintain order
+    // For now, keeping manager items first, then common.
   }
 
 

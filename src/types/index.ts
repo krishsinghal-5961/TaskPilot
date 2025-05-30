@@ -3,38 +3,49 @@ export type TaskStatus = "todo" | "in-progress" | "done" | "blocked";
 export type TaskPriority = "low" | "medium" | "high";
 
 export interface Task {
-  id: string; // Firestore document ID
+  id: string; 
   title: string;
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
-  dueDate?: string | null; // ISO Date string, or null if not set
-  assigneeId?: string | null; // Firebase Auth UID of the assignee
-  assigneeName?: string | null; // For display purposes
-  dependencies?: string[]; // Array of Task IDs
-  progress: number; // 0-100
-  createdAt: string; // ISO Date string (server timestamp preferably)
-  updatedAt: string; // ISO Date string (server timestamp preferably)
-  userId?: string; // Firebase Auth UID of the user who created/owns the task
+  dueDate?: string | null; 
+  assigneeId?: string | null; 
+  assigneeName?: string | null; 
+  dependencies?: string[]; 
+  progress: number; 
+  createdAt: string; 
+  updatedAt: string; 
+  userId?: string; 
 }
 
 export type UserRole = "manager" | "employee";
 
 export interface UserProfile {
-  uid: string; // Firebase Auth UID, also Firestore document ID in 'users' collection
+  uid: string; 
   name: string;
-  email: string; // Email used for Firebase Auth
+  email: string; 
   avatarUrl?: string;
-  currentWorkload?: number; // 0-100, for AI assignment
+  currentWorkload?: number; 
   role: UserRole;
   designation?: string;
 }
 
 export interface Notification {
-  id: string; // Firestore document ID
+  id: string; 
   message: string;
-  timestamp: string; // ISO Date string (server timestamp preferably)
+  timestamp: string; 
   read: boolean;
   link?: string;
-  userId: string; // Firebase Auth UID of the recipient
+  userId: string; 
+}
+
+export interface ChatMessage {
+  id: string;
+  senderId: string; // UID of the sender
+  senderName: string; // Name of the sender
+  receiverId?: string; // UID of the receiver (for direct messages)
+  // groupId?: string; // For group messages (not implemented yet)
+  text: string;
+  timestamp: string; // ISO Date string
+  imageUrl?: string; // For image messages (not implemented yet)
 }
