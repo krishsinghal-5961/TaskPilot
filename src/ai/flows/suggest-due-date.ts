@@ -1,3 +1,4 @@
+
 // Implemented Genkit flow for suggesting task due dates based on team workload.
 
 'use server';
@@ -58,6 +59,26 @@ const suggestDueDatePrompt = ai.definePrompt({
   Ensure that all projected workload are between 0 and 100.
   Always respond in JSON format.
   `,
+  config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_NONE',
+      },
+    ],
+  },
 });
 
 const suggestDueDateFlow = ai.defineFlow(
@@ -68,6 +89,11 @@ const suggestDueDateFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await suggestDueDatePrompt(input);
-    return output!;
+    if (!output) {
+      console.error("AI response did not conform to the output schema for suggestDueDatePrompt. Input:", input);
+      throw new Error("AI response did not conform to the expected output schema. The response might be empty, malformed, or blocked by content filters.");
+    }
+    return output;
   }
 );
+
