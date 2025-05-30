@@ -2,7 +2,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,23 +18,21 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserMinus, UserPlus, Wand2, Users, CalendarCheck, MessageSquareQuote, BarChart3 } from "lucide-react";
+import { Loader2, Wand2, Users, CalendarCheck, BarChart3, Info } from "lucide-react";
 import { suggestDueDate, type SuggestDueDateInput, type SuggestDueDateOutput } from "@/ai/flows/suggest-due-date";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { mockUsers } from "@/lib/mock-data";
+import { mockUsers } from "@/lib/mock-data"; // Import mockUsers
+import type { User } from "@/types"; // Import User type
 import { format, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const teamMemberSchema = z.object({
-  name: z.string().min(1, "Member name is required."),
-  currentWorkload: z.number().min(0).max(100, "Workload must be between 0 and 100."),
-});
 
+// Team members are no longer part of the form schema, they will be auto-populated
 const assistedAssignmentSchema = z.object({
   taskDescription: z.string().min(10, { message: "Description must be at least 10 characters." }),
   priority: z.enum(["low", "medium", "high"]),
-  teamMembers: z.array(teamMemberSchema).min(1, "At least one team member is required."),
 });
 
 type AssistedAssignmentFormValues = z.infer<typeof assistedAssignmentSchema>;
@@ -49,13 +47,7 @@ export function AssistedAssignmentClientPage() {
     defaultValues: {
       taskDescription: "",
       priority: "medium",
-      teamMembers: mockUsers.filter(u => u.role === 'employee').slice(0,2).map(u => ({ name: u.name, currentWorkload: u.currentWorkload || 0 })), // Pre-fill with some mock employee users
     },
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "teamMembers",
   });
 
   async function onSubmit(data: AssistedAssignmentFormValues) {
@@ -63,10 +55,31 @@ export function AssistedAssignmentClientPage() {
     setAiResult(null);
     try {
       const currentDate = new Date().toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      
+      // Automatically fetch and format team members
+      const teamMembersForAI = mockUsers
+        .filter((user: User) => user.role === 'employee')
+        .map(user => ({
+          name: user.name,
+          currentWorkload: user.currentWorkload || 0, // Default to 0 if undefined
+        }));
+
+      if (teamMembersForAI.length === 0) {
+        toast({
+          title: "No Team Members",
+          description: "Could not find any employees to assign tasks to. Please add employees in the Team Management section.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       const inputForAI: SuggestDueDateInput = {
         ...data,
+        teamMembers: teamMembersForAI,
         currentDate,
       };
+
       const result = await suggestDueDate(inputForAI);
       setAiResult(result);
       toast({
@@ -94,7 +107,7 @@ export function AssistedAssignmentClientPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Task Details for AI Suggestion</CardTitle>
-          <CardDescription>Provide task information and team workload for an AI-powered due date and assignee suggestion.</CardDescription>
+          <CardDescription>Provide task information. The AI will use current employee data for workload analysis.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -135,53 +148,14 @@ export function AssistedAssignmentClientPage() {
                   </FormItem>
                 )}
               />
-
-              <div>
-                <FormLabel>Team Members & Workload</FormLabel>
-                <FormDescription>Add team members and their current workload (0-100%). Only employees are listed for auto-population.</FormDescription>
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-end gap-2 mt-2 p-3 border rounded-md">
-                    <FormField
-                      control={form.control}
-                      name={`teamMembers.${index}.name`}
-                      render={({ field: nameField }) => (
-                        <FormItem className="flex-1">
-                          <FormLabel className="text-xs">Member Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Team member name" {...nameField} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`teamMembers.${index}.currentWorkload`}
-                      render={({ field: workloadField }) => (
-                        <FormItem className="w-28">
-                          <FormLabel className="text-xs">Workload %</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g. 70" {...workloadField} onChange={e => workloadField.onChange(parseInt(e.target.value, 10))} />
-                          </FormControl>
-                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="button" variant="outline" size="icon" onClick={() => remove(index)} disabled={fields.length <= 1}>
-                      <UserMinus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ name: "", currentWorkload: 0 })}
-                  className="mt-2"
-                >
-                  <UserPlus className="mr-2 h-4 w-4" /> Add Team Member
-                </Button>
-              </div>
+              
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Team Data</AlertTitle>
+                <AlertDescription>
+                  The AI will automatically consider all current employees and their workloads from the "Manage Team" section.
+                </AlertDescription>
+              </Alert>
               
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
@@ -259,3 +233,4 @@ export function AssistedAssignmentClientPage() {
     </div>
   );
 }
+
