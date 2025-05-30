@@ -134,7 +134,7 @@ export default function TeamManagementPage() {
                       <FormItem>
                         <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., John Doe" {...field} />
+                          <Input placeholder="e.g., Krish Singhal" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -147,7 +147,7 @@ export default function TeamManagementPage() {
                       <FormItem>
                         <FormLabel>Email Address</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="e.g., john.doe@example.com" {...field} />
+                          <Input type="email" placeholder="e.g., krish.singhal@gmail.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -180,7 +180,7 @@ export default function TeamManagementPage() {
                 <Card key={member.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4 flex items-center gap-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint="team member avatar" />
+                      <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint="team member avatar"/>
                       <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                     </Avatar>
                     <div>

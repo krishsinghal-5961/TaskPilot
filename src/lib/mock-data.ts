@@ -5,10 +5,10 @@ import { addDays, subDays, formatISO } from "date-fns";
 const today = new Date();
 
 export const mockUsers: User[] = [
-  { id: "user-1", name: "Alice Wonderland", email: "alice@example.com", avatarUrl: "https://placehold.co/100x100.png?text=AW", currentWorkload: 30, role: "manager" },
-  { id: "user-2", name: "Bob The Builder", email: "bob@example.com", avatarUrl: "https://placehold.co/100x100.png?text=BB", currentWorkload: 70, role: "employee" },
-  { id: "user-3", name: "Charlie Chaplin", email: "charlie@example.com", avatarUrl: "https://placehold.co/100x100.png?text=CC", currentWorkload: 50, role: "employee" },
-  { id: "user-4", name: "Diana Prince", email: "diana@example.com", avatarUrl: "https://placehold.co/100x100.png?text=DP", currentWorkload: 20, role: "employee" },
+  { id: "user-1", name: "Priya Sharma", email: "priya.sharma@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=PS", currentWorkload: 30, role: "manager" },
+  { id: "user-2", name: "Rohan Mehra", email: "rohan.mehra@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=RM", currentWorkload: 70, role: "employee" },
+  { id: "user-3", name: "Aisha Khan", email: "aisha.khan@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=AK", currentWorkload: 50, role: "employee" },
+  { id: "user-4", name: "Vikram Singh", email: "vikram.singh@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=VS", currentWorkload: 20, role: "employee" },
 ];
 
 export const mockTasks: Task[] = [
@@ -19,7 +19,7 @@ export const mockTasks: Task[] = [
     status: "in-progress" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 7)),
-    assigneeId: "user-1", // Alice (manager) can also be assigned tasks
+    assigneeId: "user-1", // Priya Sharma (manager) can also be assigned tasks
     progress: 60,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),
@@ -114,14 +114,14 @@ export const mockNotifications: Notification[] = [
   },
   {
     id: "notif-2",
-    message: "Alice Wonderland updated progress on 'Design Homepage UI'.",
+    message: "Priya Sharma updated progress on 'Design Homepage UI'.", // Updated name
     timestamp: formatISO(subDays(today, 0)),
     read: false,
     link: "/tasks/task-1",
   },
   {
     id: "notif-3",
-    message: "Task 'Setup Project Backend' was completed by Charlie Chaplin.",
+    message: "Task 'Setup Project Backend' was completed by Aisha Khan.", // Updated name
     timestamp: formatISO(subDays(today, 2)),
     read: true,
     link: "/tasks/task-3",

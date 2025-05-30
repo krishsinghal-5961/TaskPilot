@@ -76,7 +76,7 @@ export function LoginForm() {
           </Button>
         </form>
         <p className="mt-4 text-xs text-center text-muted-foreground">
-          Hint: Try 'user-1' (manager), 'user-2', 'user-3', or 'user-4' (employees).
+          Hint: Try 'user-1' (Priya Sharma - manager), 'user-2', 'user-3', or 'user-4' (employees).
         </p>
       </CardContent>
     </Card>
