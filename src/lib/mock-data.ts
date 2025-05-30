@@ -1,6 +1,6 @@
 
 import type { Notification, UserProfile, Task } from "@/types";
-import { formatISO, subDays } from "date-fns";
+import { formatISO, subDays, addDays } from "date-fns"; // Added addDays for potential future use
 import { getInitials } from "./utils";
 
 const today = new Date();
@@ -43,6 +43,15 @@ export const mockUsers: UserProfile[] = [
     avatarUrl: `https://placehold.co/100x100.png?text=${getInitials("Vikram Singh")}`,
     currentWorkload: 60,
   },
+  {
+    uid: "krish-pe", // New Employee
+    name: "Krish Singhal",
+    email: "krish-pe@gmail.com",
+    role: "employee",
+    designation: "Prompt Engineer",
+    avatarUrl: `https://placehold.co/100x100.png?text=${getInitials("Krish Singhal")}`,
+    currentWorkload: 0,
+  },
 ];
 
 // Sample Task Data
@@ -53,12 +62,12 @@ export const mockTasks: Task[] = [
     description: "Create a modern and responsive design for the TaskPilot homepage, including wireframes and mockups.",
     status: "in-progress",
     priority: "high",
-    dueDate: formatISO(new Date(new Date().setDate(new Date().getDate() + 7))),
+    dueDate: formatISO(addDays(today, 7)),
     assigneeId: "rohan-dev", 
     progress: 60,
     dependencies: [],
-    createdAt: formatISO(subDays(new Date(), 10)),
-    updatedAt: formatISO(subDays(new Date(), 1)),
+    createdAt: formatISO(subDays(today, 10)),
+    updatedAt: formatISO(subDays(today, 1)),
     userId: "priya-mgr",
   },
   {
@@ -67,12 +76,12 @@ export const mockTasks: Task[] = [
     description: "Implement user registration, login, and session management using secure practices.",
     status: "todo",
     priority: "high",
-    dueDate: formatISO(new Date(new Date().setDate(new Date().getDate() + 14))),
+    dueDate: formatISO(addDays(today, 14)),
     assigneeId: "aisha-dev", 
     progress: 10,
     dependencies: [],
-    createdAt: formatISO(subDays(new Date(), 8)),
-    updatedAt: formatISO(subDays(new Date(), 2)),
+    createdAt: formatISO(subDays(today, 8)),
+    updatedAt: formatISO(subDays(today, 2)),
     userId: "priya-mgr",
   },
   {
@@ -81,12 +90,12 @@ export const mockTasks: Task[] = [
     description: "Configure a continuous integration and continuous deployment pipeline for automated testing and deployment.",
     status: "todo",
     priority: "medium",
-    dueDate: formatISO(new Date(new Date().setDate(new Date().getDate() + 21))),
+    dueDate: formatISO(addDays(today, 21)),
     assigneeId: "rohan-dev",
     progress: 0,
     dependencies: ["task-2"], 
-    createdAt: formatISO(subDays(new Date(), 5)),
-    updatedAt: formatISO(subDays(new Date(), 5)),
+    createdAt: formatISO(subDays(today, 5)),
+    updatedAt: formatISO(subDays(today, 5)),
     userId: "priya-mgr",
   },
   {
@@ -99,8 +108,8 @@ export const mockTasks: Task[] = [
     assigneeId: null, 
     progress: 0,
     dependencies: [],
-    createdAt: formatISO(subDays(new Date(), 3)),
-    updatedAt: formatISO(subDays(new Date(), 3)),
+    createdAt: formatISO(subDays(today, 3)),
+    updatedAt: formatISO(subDays(today, 3)),
     userId: "priya-mgr",
   },
   {
@@ -109,12 +118,12 @@ export const mockTasks: Task[] = [
     description: "Conduct load testing and performance analysis to identify and address bottlenecks.",
     status: "done",
     priority: "medium",
-    dueDate: formatISO(subDays(new Date(), 2)), 
+    dueDate: formatISO(subDays(today, 2)), 
     assigneeId: "vikram-qa", 
     progress: 100,
     dependencies: [],
-    createdAt: formatISO(subDays(new Date(), 15)),
-    updatedAt: formatISO(subDays(new Date(), 1)),
+    createdAt: formatISO(subDays(today, 15)),
+    updatedAt: formatISO(subDays(today, 1)),
     userId: "priya-mgr",
   },
 ];
@@ -125,7 +134,7 @@ export const mockNotifications: Notification[] = [
     id: "notif-1",
     userId: "rohan-dev",
     message: "Task 'Design Homepage UI' is due in 7 days.",
-    timestamp: formatISO(subDays(new Date(), 1)),
+    timestamp: formatISO(subDays(today, 1)),
     read: false,
     link: "/tasks/task-1",
   },
@@ -133,7 +142,7 @@ export const mockNotifications: Notification[] = [
     id: "notif-2",
     userId: "priya-mgr", 
     message: "Aisha Khan updated progress on 'Develop Authentication System'.",
-    timestamp: formatISO(subDays(new Date(), 0)),
+    timestamp: formatISO(subDays(today, 0)),
     read: false,
     link: "/tasks/task-2",
   },
@@ -141,7 +150,7 @@ export const mockNotifications: Notification[] = [
     id: "notif-3",
     userId: "vikram-qa",
     message: "New task 'Conduct User Acceptance Testing' assigned to you.",
-    timestamp: formatISO(subDays(new Date(), 2)),
+    timestamp: formatISO(subDays(today, 2)),
     read: true,
     link: "/tasks/new-task-id-placeholder", 
   },
@@ -149,7 +158,7 @@ export const mockNotifications: Notification[] = [
     id: 'notif-4',
     userId: 'priya-mgr',
     message: "Rohan Mehra completed task 'Design Homepage UI'",
-    timestamp: formatISO(new Date()),
+    timestamp: formatISO(today),
     read: false,
     link: '/tasks/task-1',
   },
@@ -157,7 +166,7 @@ export const mockNotifications: Notification[] = [
     id: 'notif-5',
     userId: 'rohan-dev',
     message: "Task 'Develop Authentication System' (dependency for 'Setup CI/CD Pipeline') has been completed.",
-    timestamp: formatISO(new Date()),
+    timestamp: formatISO(today),
     read: false,
     link: '/tasks/task-3',
   },
