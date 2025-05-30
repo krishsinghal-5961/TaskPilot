@@ -3,7 +3,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2 } from "lucide-react";
 import { SummaryCard } from "@/components/dashboard/SummaryCard";
@@ -16,32 +16,28 @@ import { TaskPriorityBadge, TaskStatusBadge } from "@/components/tasks/TaskBadge
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { getAllTasks } from "@/services/taskService";
-import { getAllUsers } from "@/services/userService";
+import { mockTasks, mockUsers } from "@/lib/mock-data"; // Using mock data
 import type { Task, UserProfile } from "@/types";
 
 export default function ManagerDashboardPage() {
   const { currentUser, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && (!currentUser || currentUser.role !== "manager")) {
-      router.replace("/login");
+    if (!authLoading) {
+      if (!currentUser || currentUser.role !== "manager") {
+        router.replace("/login");
+      } else {
+        // Load mock data when user is confirmed as manager
+        setTasks([...mockTasks]);
+        setTeamMembers([...mockUsers]);
+        setIsDataLoading(false);
+      }
     }
   }, [currentUser, authLoading, router]);
-
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
-    queryKey: ['tasks', 'managerDashboard'],
-    queryFn: () => getAllTasks(currentUser?.uid, 'manager'), // Fetch all tasks for manager
-    enabled: !!currentUser && currentUser.role === 'manager',
-  });
-
-  const { data: teamMembers = [], isLoading: usersLoading } = useQuery<UserProfile[]>({
-    queryKey: ['users', 'managerDashboard'],
-    queryFn: getAllUsers,
-    enabled: !!currentUser && currentUser.role === 'manager',
-  });
 
   const dashboardStats = useMemo(() => {
     const totalTasks = tasks.length;
@@ -59,7 +55,7 @@ export default function ManagerDashboardPage() {
   
   const getUserById = (id?: string | null) => teamMembers.find(user => user.uid === id);
 
-  if (authLoading || !currentUser || tasksLoading || usersLoading) {
+  if (authLoading || isDataLoading || !currentUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -128,7 +124,7 @@ export default function ManagerDashboardPage() {
             <CardTitle>Team Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {teamMembers.filter(u => u.role === 'employee').slice(0,4).map(user => ( 
+             {teamMembers.filter(u => u.role === 'employee').slice(0,4).map(user => ( 
               <div key={user.uid} className="flex items-center gap-3 p-2 bg-secondary/30 rounded-lg">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="team member avatar" />

@@ -10,12 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { TaskStatus, TaskPriority, UserProfile } from "@/types";
+import type { UserProfile } from "@/types"; // Keep UserProfile type
 import { FilterX, Search } from "lucide-react";
 
 interface TaskFilterControlsProps {
   onFilterChange: (filters: Record<string, string>) => void;
-  assignees?: UserProfile[];
+  assignees?: UserProfile[]; // Keep this for mock data or if needed later
   isLoadingAssignees?: boolean;
 }
 
@@ -30,11 +30,21 @@ export function TaskFilterControls({
   };
   
   const clearFilters = () => {
-    onFilterChange({}); 
+    // Reset filter state in parent component
+    onFilterChange({ 
+      searchTerm: "", 
+      status: "all", 
+      priority: "all", 
+      assignee: "all" 
+    });
+    
+    // Visually clear inputs - this might require controlled components or direct DOM manipulation
     const searchInput = document.getElementById("search-task") as HTMLInputElement | null;
     if (searchInput) searchInput.value = "";
-    // Consider resetting select components by controlling their value from parent or using a key prop to re-mount.
-    // For now, they will visually retain selection but filter logic will reset.
+
+    // For Select components, if they are not controlled from parent, this won't visually reset them.
+    // This is often handled by having the parent component pass down the current filter values as props
+    // to control the Select's value, or by using a key prop on the filter controls component to force a re-mount.
   }
 
   return (
@@ -49,7 +59,7 @@ export function TaskFilterControls({
         />
       </div>
       
-      <Select onValueChange={(value) => handleInputChange("status", value)}>
+      <Select onValueChange={(value) => handleInputChange("status", value)} defaultValue="all">
         <SelectTrigger>
           <SelectValue placeholder="Filter by status" />
         </SelectTrigger>
@@ -62,7 +72,7 @@ export function TaskFilterControls({
         </SelectContent>
       </Select>
 
-      <Select onValueChange={(value) => handleInputChange("priority", value)}>
+      <Select onValueChange={(value) => handleInputChange("priority", value)} defaultValue="all">
         <SelectTrigger>
           <SelectValue placeholder="Filter by priority" />
         </SelectTrigger>
@@ -74,7 +84,7 @@ export function TaskFilterControls({
         </SelectContent>
       </Select>
 
-      <Select onValueChange={(value) => handleInputChange("assignee", value)} disabled={isLoadingAssignees}>
+      <Select onValueChange={(value) => handleInputChange("assignee", value)} defaultValue="all" disabled={isLoadingAssignees || assignees.length === 0}>
         <SelectTrigger>
           <SelectValue placeholder="Filter by assignee" />
         </SelectTrigger>

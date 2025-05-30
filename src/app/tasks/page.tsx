@@ -26,14 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllTasks, deleteTaskFromFirestore, updateTaskStatusInFirestore } from "@/services/taskService";
-import { getAllUsers } from "@/services/userService"; // To get assignee names
-// import {
-//   notifyManagerOfTaskCompletion,
-//   checkAndNotifyForDependentTasks,
-//   notifyManagerOfProgressChange
-// } from "@/lib/notificationService"; // Notification service needs update for Firestore
+import { mockTasks, mockUsers } from "@/lib/mock-data"; // Using mock data
+import { notifyManagerOfTaskCompletion, checkAndNotifyForDependentTasks, notifyManagerOfProgressChange } from "@/lib/notificationService";
 
 type SortConfig = {
   key: keyof Task | "assigneeName" | null;
@@ -44,10 +38,12 @@ export default function TasksPage() {
   const { toast } = useToast();
   const { currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "createdAt", direction: "descending" });
+  const [tasks, setTasks] = useState<Task[]>([]); // Local state for tasks, to be refreshed
+  const [users, setUsers] = useState<UserProfile[]>([]); // Local state for users
+  const [refreshKey, setRefreshKey] = useState(0); // To trigger re-renders
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -55,76 +51,42 @@ export default function TasksPage() {
     }
   }, [currentUser, authLoading, router]);
 
-  const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useQuery<Task[]>({
-    queryKey: ['tasks', currentUser?.uid, currentUser?.role],
-    queryFn: () => getAllTasks(currentUser?.uid, currentUser?.role),
-    enabled: !!currentUser, // Only fetch if currentUser is available
-  });
+  useEffect(() => {
+    // Load initial data or refresh data when currentUser or refreshKey changes
+    if (currentUser) {
+      if (currentUser.role === 'manager') {
+        setTasks([...mockTasks]); // Managers see all tasks
+        setUsers([...mockUsers]);
+      } else {
+        setTasks(mockTasks.filter(task => task.assigneeId === currentUser.uid)); // Employees see their tasks
+        setUsers(mockUsers.filter(u => u.uid === currentUser.uid || u.role === 'manager')); // Employees see themselves and managers for context
+      }
+    } else {
+      setTasks([]);
+      setUsers([]);
+    }
+  }, [currentUser, refreshKey, authLoading]);
 
-  const { data: users = [], isLoading: usersLoading } = useQuery<UserProfile[]>({
-    queryKey: ['users'],
-    queryFn: getAllUsers,
-    enabled: currentUser?.role === 'manager', // Only managers might need all users for filtering/display
-  });
-  
+
   const handleFilterChange = (newFilters: Record<string, string>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteTaskFromFirestore,
-    onSuccess: (data, taskId) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      const taskToDelete = tasks.find(t => t.id === taskId);
-      toast({
-        title: "Task Deleted",
-        description: `Task "${taskToDelete?.title || 'selected task'}" has been deleted.`,
-        variant: "destructive",
-      });
-    },
-    onError: (error) => {
-        toast({
-          title: "Error Deleting Task",
-          description: error.message,
-          variant: "destructive",
-        });
-    }
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (variables: { taskId: string; status: TaskStatus; progress?: number }) => 
-                 updateTaskStatusInFirestore(variables.taskId, variables.status, variables.progress),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast({
-        title: "Task Updated",
-        description: `Task status changed to ${variables.status}.`,
-      });
-      // TODO: Re-integrate notification logic with Firestore
-      // if (variables.status === 'done') {
-      //   const updatedTask = tasks.find(t => t.id === variables.taskId);
-      //   if (updatedTask) {
-      //     // notifyManagerOfTaskCompletion(updatedTask, currentUser?.name);
-      //     // checkAndNotifyForDependentTasks(updatedTask);
-      //   }
-      // }
-    },
-     onError: (error) => {
-        toast({
-          title: "Error Updating Status",
-          description: error.message,
-          variant: "destructive",
-        });
-    }
-  });
 
   const handleDeleteTask = (taskId: string) => {
     const taskToDelete = tasks.find(t => t.id === taskId);
     if (!taskToDelete) return;
 
-    // Permissions check should ideally be backend, but client-side for now
     if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.uid )) {
-       deleteMutation.mutate(taskId);
+       const taskIndex = mockTasks.findIndex(t => t.id === taskId);
+       if (taskIndex !== -1) {
+         mockTasks.splice(taskIndex, 1);
+         setRefreshKey(prev => prev + 1); // Trigger re-render
+         toast({
+           title: "Task Deleted",
+           description: `Task "${taskToDelete?.title || 'selected task'}" has been deleted.`,
+           variant: "destructive",
+         });
+       }
     } else {
         toast({
           title: "Permission Denied",
@@ -135,12 +97,29 @@ export default function TasksPage() {
   };
 
   const handleUpdateStatus = (taskId: string, status: TaskStatus) => {
-    const taskToUpdate = tasks.find(t => t.id === taskId);
-    if (!taskToUpdate) return;
+    const taskIndex = mockTasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+    const taskToUpdate = mockTasks[taskIndex];
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.uid) {
+      const oldStatus = taskToUpdate.status;
       const progress = status === 'done' ? 100 : (status === 'in-progress' && taskToUpdate.progress === 0 ? 10 : taskToUpdate.progress);
-      updateStatusMutation.mutate({ taskId, status, progress });
+      
+      mockTasks[taskIndex] = { ...taskToUpdate, status, progress, updatedAt: formatISO(new Date()) };
+      setRefreshKey(prev => prev + 1); // Trigger re-render
+
+      toast({
+        title: "Task Updated",
+        description: `Task status changed to ${status}.`,
+      });
+
+      if (status === 'done' && oldStatus !== 'done') {
+        notifyManagerOfTaskCompletion(mockTasks[taskIndex], currentUser?.name);
+        checkAndNotifyForDependentTasks(mockTasks[taskIndex]);
+      } else if (status !== oldStatus) {
+        notifyManagerOfProgressChange(mockTasks[taskIndex], currentUser?.name);
+      }
+
     } else {
        toast({
         title: "Permission Denied",
@@ -151,9 +130,9 @@ export default function TasksPage() {
   };
   
   const getUserById = useCallback((assigneeId?: string | null) => {
-    if (!assigneeId || usersLoading || users.length === 0) return null;
+    if (!assigneeId || users.length === 0) return null;
     return users.find(user => user.uid === assigneeId);
-  }, [users, usersLoading]);
+  }, [users]);
 
   const filteredTasks = useMemo(() => {
     let currentTasksToShow = [...tasks]; 
@@ -185,8 +164,9 @@ export default function TasksPage() {
           aValue = getUserById(a.assigneeId)?.name || "";
           bValue = getUserById(b.assigneeId)?.name || "";
         } else if (sortConfig.key === "dueDate" || sortConfig.key === "createdAt" || sortConfig.key === "updatedAt") {
-          aValue = a[sortConfig.key as keyof Task] ? parseISO(a[sortConfig.key as keyof Task] as string).getTime() : 0;
-          bValue = b[sortConfig.key as keyof Task] ? parseISO(b[sortConfig.key as keyof Task] as string).getTime() : 0;
+          // Ensure values are comparable numbers or handle null/undefined
+          aValue = a[sortConfig.key as keyof Task] ? parseISO(a[sortConfig.key as keyof Task] as string).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
+          bValue = b[sortConfig.key as keyof Task] ? parseISO(b[sortConfig.key as keyof Task] as string).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
         } else {
           aValue = a[sortConfig.key as keyof Task];
           bValue = b[sortConfig.key as keyof Task];
@@ -230,14 +210,18 @@ export default function TasksPage() {
       </div>
     );
   }
+  
+  let pageActions = null;
+  if (currentUser && currentUser.role === 'manager') {
+    pageActions = (
+      <Button asChild>
+        <Link href="/tasks/new">
+          <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
+        </Link>
+      </Button>
+    );
+  }
 
-  const pageActions = currentUser.role === 'manager' ? (
-    <Button asChild>
-      <Link href="/tasks/new">
-        <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
-      </Link>
-    </Button>
-  ) : null;
 
   return (
     <div className="space-y-6">
@@ -249,22 +233,19 @@ export default function TasksPage() {
 
       <TaskFilterControls 
         onFilterChange={handleFilterChange} 
-        // Pass users for assignee filter if manager
-        assignees={currentUser.role === 'manager' ? users : []}
-        isLoadingAssignees={usersLoading}
+        assignees={currentUser.role === 'manager' ? users.filter(u => u.role === 'employee') : []}
+        isLoadingAssignees={authLoading} // Or a more specific loading state if users were fetched async
       />
 
       <Card className="shadow-md">
         <CardContent className="p-0">
-           {tasksLoading && (
+           {authLoading && tasks.length === 0 && ( // Show loader if auth is loading and no tasks yet
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
-          {tasksError && (
-            <div className="p-4 text-destructive">Error loading tasks: {tasksError.message}</div>
-          )}
-          {!tasksLoading && !tasksError && (
+          {/* No specific tasksError state as we're using mock data for now */}
+          {!authLoading && (
           <Table>
             <TableHeader>
               <TableRow>
@@ -296,7 +277,7 @@ export default function TasksPage() {
                         {assignee ? (
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6">
-                              <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar"/>
+                              <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar" />
                               <AvatarFallback>{getInitials(assignee.name)}</AvatarFallback>
                             </Avatar>
                             {assignee.name}

@@ -19,15 +19,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Wand2, Users, CalendarCheck, BarChart3, Info } from "lucide-react";
 import { suggestDueDate, type SuggestDueDateInput, type SuggestDueDateOutput } from "@/ai/flows/suggest-due-date";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfile } from "@/types";
 import { format, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useQuery } from "@tanstack/react-query";
-import { getAllUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
+import { mockUsers } from "@/lib/mock-data"; // Using mock data
 
 
 const assistedAssignmentSchema = z.object({
@@ -42,12 +41,17 @@ export function AssistedAssignmentClientPage() {
   const { currentUser } = useAuth();
   const [isAISuggesting, setIsAISuggesting] = useState(false);
   const [aiResult, setAiResult] = useState<SuggestDueDateOutput | null>(null);
+  const [teamMembersData, setTeamMembersData] = useState<UserProfile[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(true);
 
-  const { data: teamMembersData, isLoading: teamMembersLoading } = useQuery<UserProfile[]>({
-    queryKey: ['users', 'forAIAssignment'],
-    queryFn: () => getAllUsers(), // Assuming getAllUsers fetches all relevant users
-    enabled: !!currentUser, // Only fetch if a user is logged in (manager in this case)
-  });
+
+  useEffect(() => {
+    if (currentUser) {
+      // Simulate fetching team members
+      setTeamMembersData(mockUsers.filter(user => user.role === 'employee'));
+      setTeamMembersLoading(false);
+    }
+  }, [currentUser]);
 
   const form = useForm<AssistedAssignmentFormValues>({
     resolver: zodResolver(assistedAssignmentSchema),
@@ -74,7 +78,6 @@ export function AssistedAssignmentClientPage() {
       }
       
       const employeesForAI = teamMembersData
-        .filter((user: UserProfile) => user.role === 'employee')
         .map(user => ({
           name: user.name,
           currentWorkload: user.currentWorkload || 0,
@@ -104,7 +107,7 @@ export function AssistedAssignmentClientPage() {
       });
     } catch (error) {
       console.error("Error calling AI flow:", error);
-      let errorMessage = "Failed to get suggestion from AI. Please try again.";
+      let errorMessage = "Failed to get suggestion from AI. Please try again. Ensure GOOGLE_API_KEY is set if using Google AI.";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
@@ -200,7 +203,7 @@ export function AssistedAssignmentClientPage() {
             </div>
           )}
           {!isAISuggesting && !aiResult && (
-            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion. Ensure your GOOGLE_API_KEY is set in .env.</p>
+            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion.</p>
           )}
           {aiResult && (
             <div className="space-y-6">

@@ -1,17 +1,14 @@
 
 "use client";
 
-import type { UserProfile } from "@/types";
+import type { UserProfile, UserRole } from "@/types"; // Assuming User is defined in types
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Auth, User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { getUserProfile, updateUserProfileInFirestore } from "@/services/userService"; // We'll create this service
+import { mockUsers } from "@/lib/mock-data"; // We'll use mock users
 
 interface AuthContextType {
-  currentUser: UserProfile | null; // This will be our app's user profile
-  firebaseUser: FirebaseUser | null; // Original Firebase user object
-  login: (email: string, password: string) => Promise<boolean>;
+  currentUser: UserProfile | null;
+  login: (employeeId: string) => boolean; // Simple login with employee ID
   logout: () => void;
   isLoading: boolean;
   updateCurrentUserDetails: (updatedDetails: Partial<UserProfile>) => Promise<boolean>;
@@ -19,113 +16,68 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_STORAGE_KEY = "taskpilot-auth-userId";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setIsLoading(true);
+    // Try to load user from localStorage on initial load
+    setIsLoading(true);
+    const storedUserId = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (storedUserId) {
+      const user = mockUsers.find(u => u.uid === storedUserId);
       if (user) {
-        setFirebaseUser(user);
-        try {
-          const userProfileData = await getUserProfile(user.uid);
-          if (userProfileData) {
-            setCurrentUser(userProfileData);
-          } else {
-            // This case means user exists in Firebase Auth but not in Firestore 'users' collection.
-            // Potentially redirect to a profile setup page or handle as an error.
-            console.warn("User profile not found in Firestore for UID:", user.uid);
-            setCurrentUser(null); // Or a minimal profile
-             // signOut(auth); // Optionally sign out if profile is mandatory
-          }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
-            setCurrentUser(null);
-            // signOut(auth); // Optionally sign out
-        }
+        setCurrentUser(user);
       } else {
-        setFirebaseUser(null);
-        setCurrentUser(null);
+        localStorage.removeItem(AUTH_STORAGE_KEY); // Clean up invalid stored ID
       }
-      setIsLoading(false);
-    });
-    return () => unsubscribe();
+    }
+    setIsLoading(false);
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback((employeeId: string): boolean => {
     setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting currentUser and redirecting
-      // For immediate redirect feedback (optional, as onAuthStateChanged will trigger it):
-      // const user = auth.currentUser;
-      // if (user) {
-      //   const profile = await getUserProfile(user.uid);
-      //   if (profile?.role === "manager") router.push("/dashboard/manager");
-      //   else if (profile?.role === "employee") router.push("/dashboard/employee");
-      //   else router.push("/"); // Fallback
-      // }
+    const user = mockUsers.find(u => u.uid === employeeId);
+    if (user) {
+      setCurrentUser(user);
+      localStorage.setItem(AUTH_STORAGE_KEY, user.uid);
       setIsLoading(false);
+      if (user.role === "manager") {
+        router.push("/dashboard/manager");
+      } else {
+        router.push("/dashboard/employee");
+      }
       return true;
-    } catch (error) {
-      console.error("Login failed:", error);
-      setIsLoading(false);
-      return false;
     }
+    setIsLoading(false);
+    return false;
   }, [router]);
 
-  const logout = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      await signOut(auth);
-      setCurrentUser(null);
-      setFirebaseUser(null);
-      router.push("/login");
-    } catch (error) {
-      console.error("Logout failed:", error);
-    } finally {
-        setIsLoading(false);
-    }
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    router.push("/login");
   }, [router]);
 
   const updateCurrentUserDetails = useCallback(async (updatedDetails: Partial<UserProfile>): Promise<boolean> => {
-    if (!currentUser || !firebaseUser) return false;
-    setIsLoading(true);
-    try {
-      await updateUserProfileInFirestore(firebaseUser.uid, updatedDetails);
-      // Re-fetch or optimistically update currentUser
-      const updatedProfile = await getUserProfile(firebaseUser.uid);
-      if (updatedProfile) {
-        setCurrentUser(updatedProfile);
-      }
-      setIsLoading(false);
+    if (!currentUser) return false;
+    
+    const userIndex = mockUsers.findIndex(u => u.uid === currentUser.uid);
+    if (userIndex !== -1) {
+      const updatedUser = { ...mockUsers[userIndex], ...updatedDetails };
+      mockUsers[userIndex] = updatedUser; // Update in the global mock array
+      setCurrentUser(updatedUser); // Update context state
       return true;
-    } catch (error) {
-      console.error("Failed to update user details:", error);
-      setIsLoading(false);
-      return false;
     }
-  }, [currentUser, firebaseUser]);
-
-  // Redirect logic based on currentUser role
-  useEffect(() => {
-    if (!isLoading && currentUser) {
-        if (router.pathname === "/login" || router.pathname === "/") {
-             if (currentUser.role === "manager") {
-                router.replace("/dashboard/manager");
-            } else if (currentUser.role === "employee") {
-                router.replace("/dashboard/employee");
-            }
-        }
-    }
-  }, [currentUser, isLoading, router, router.pathname]);
+    return false;
+  }, [currentUser]);
 
 
   return (
-    <AuthContext.Provider value={{ currentUser, firebaseUser, login, logout, isLoading, updateCurrentUserDetails }}>
+    <AuthContext.Provider value={{ currentUser, login, logout, isLoading, updateCurrentUserDetails }}>
       {children}
     </AuthContext.Provider>
   );

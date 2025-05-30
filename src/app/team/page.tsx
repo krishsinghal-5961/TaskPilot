@@ -3,7 +3,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2, Users, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +33,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllUsers, addUserToFirestore } from "@/services/userService";
+import { mockUsers } from "@/lib/mock-data"; // Using mock data
 
 const addMemberSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -47,15 +46,12 @@ export default function TeamManagementPage() {
   const { currentUser, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
+  const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
-
-  const { data: teamMembers = [], isLoading: usersLoading, error: usersError } = useQuery<UserProfile[]>({
-    queryKey: ['users', 'teamManagement'],
-    queryFn: getAllUsers,
-    enabled: !!currentUser && currentUser.role === 'manager',
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // To trigger re-render of list
 
   const form = useForm<AddMemberFormValues>({
     resolver: zodResolver(addMemberSchema),
@@ -70,40 +66,47 @@ export default function TeamManagementPage() {
     if (!authIsLoading) {
       if (!currentUser || currentUser.role !== "manager") {
         router.replace("/login");
+      } else {
+        setTeamMembers([...mockUsers]); // Load users from mock data
+        setIsDataLoading(false);
       }
     }
-  }, [currentUser, authIsLoading, router]);
+  }, [currentUser, authIsLoading, router, refreshKey]);
 
-  const addUserMutation = useMutation({
-    mutationFn: (newUserData: Omit<UserProfile, 'uid' | 'currentWorkload' | 'avatarUrl' | 'role'>) => 
-      addUserToFirestore({
-        ...newUserData,
-        role: "employee", // Default role for new members
-        avatarUrl: `https://placehold.co/100x100.png?text=${getInitials(newUserData.name)}`,
-      }),
-    onSuccess: (newUser) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+
+  const handleAddMemberSubmit = async (data: AddMemberFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const newUser: UserProfile = {
+        uid: `user-${Date.now()}`, // Simple ID generation
+        name: data.name,
+        email: data.email,
+        role: "employee", // Default role
+        designation: data.designation,
+        avatarUrl: `https://placehold.co/100x100.png?text=${getInitials(data.name)}`,
+        currentWorkload: 0,
+      };
+      mockUsers.push(newUser); // Add to the global mock array
+      setRefreshKey(prev => prev + 1); // Trigger re-fetch for this component
+      
       toast({
         title: "Member Added",
-        description: `${newUser.name} has been added to the team (Firestore only). Please create their Auth account separately.`,
+        description: `${newUser.name} has been added to the team.`,
       });
       form.reset();
       setIsAddMemberDialogOpen(false);
-    },
-    onError: (error: Error) => {
+    } catch (error: any) {
       toast({
         title: "Failed to Add Member",
-        description: error.message,
+        description: error.message || "An unexpected error occurred.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
-  });
-
-  const handleAddMemberSubmit = async (data: AddMemberFormValues) => {
-    addUserMutation.mutate(data);
   };
 
-  if (authIsLoading || !currentUser || currentUser.role !== "manager") {
+  if (authIsLoading || isDataLoading || !currentUser || currentUser.role !== "manager") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -131,7 +134,6 @@ export default function TeamManagementPage() {
                 <DialogTitle>Add New Team Member</DialogTitle>
                 <DialogDescription>
                   Enter the details for the new team member. They will be added with an 'employee' role.
-                  An authentication account must be created for them separately in Firebase.
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
@@ -143,7 +145,7 @@ export default function TeamManagementPage() {
                       <FormItem>
                         <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Krish Singhal" {...field} disabled={addUserMutation.isPending}/>
+                          <Input placeholder="e.g., Krish Singhal" {...field} disabled={isSubmitting}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -156,7 +158,7 @@ export default function TeamManagementPage() {
                       <FormItem>
                         <FormLabel>Email Address</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="e.g., krish.singhal@gmail.com" {...field} disabled={addUserMutation.isPending}/>
+                          <Input type="email" placeholder="e.g., krish.singhal@gmail.com" {...field} disabled={isSubmitting}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -169,18 +171,18 @@ export default function TeamManagementPage() {
                       <FormItem>
                         <FormLabel>Designation</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Software Engineer" {...field} disabled={addUserMutation.isPending}/>
+                          <Input placeholder="e.g., Software Engineer" {...field} disabled={isSubmitting}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsAddMemberDialogOpen(false)} disabled={addUserMutation.isPending}>
+                    <Button type="button" variant="outline" onClick={() => setIsAddMemberDialogOpen(false)} disabled={isSubmitting}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={addUserMutation.isPending}>
-                      {addUserMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Add Member
                     </Button>
                   </DialogFooter>
@@ -190,9 +192,9 @@ export default function TeamManagementPage() {
           </Dialog>
         }
       />
-      {usersLoading && <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>}
-      {usersError && <p className="text-destructive p-4">Error loading team members: {(usersError as Error).message}</p>}
-      {!usersLoading && !usersError && (
+      {isDataLoading && <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>}
+      {/* No usersError state for mock data */}
+      {!isDataLoading && (
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Current Team Members</CardTitle>
@@ -205,7 +207,7 @@ export default function TeamManagementPage() {
                 <Card key={member.uid} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4 flex items-center gap-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint="team member avatar"/>
+                      <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint="team member avatar" />
                       <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                     </Avatar>
                     <div>

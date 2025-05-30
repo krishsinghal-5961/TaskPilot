@@ -21,22 +21,21 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, formatISO } from "date-fns";
 import type { Task, UserProfile } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { addTaskToFirestore, updateTaskInFirestore, getAllTasks } from "@/services/taskService";
-import { getAllUsers } from "@/services/userService";
-// import {
-//   notifyEmployeeOfTaskAssignment,
-//   notifyManagerOfProgressChange,
-//   notifyManagerOfTaskCompletion,
-//   checkAndNotifyForDependentTasks
-// } from "@/lib/notificationService"; // Needs update for Firestore
+import { mockTasks, mockUsers } from "@/lib/mock-data"; // Using mock data
+import { 
+  notifyEmployeeOfTaskAssignment,
+  notifyManagerOfProgressChange,
+  notifyManagerOfTaskCompletion,
+  checkAndNotifyForDependentTasks
+} from "@/lib/notificationService";
+import { useEffect, useState } from "react";
 
 const UNASSIGNED_VALUE = "_UNASSIGNED_";
 
@@ -46,7 +45,7 @@ const taskFormSchema = z.object({
   status: z.enum(["todo", "in-progress", "done", "blocked"]),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.date().optional().nullable(),
-  assigneeId: z.string().optional(), 
+  assigneeId: z.string().optional(), // Can be _UNASSIGNED_ or actual UID
   dependencies: z.array(z.string()).optional(),
   progress: z.number().min(0).max(100).optional(),
 });
@@ -62,7 +61,19 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
-  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State for users and all tasks (for dependencies)
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [allTasksForDeps, setAllTasksForDeps] = useState<Task[]>([]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'manager') {
+      setUsers([...mockUsers]);
+    }
+    setAllTasksForDeps([...mockTasks]);
+  }, [currentUser]);
+
 
   const defaultValues: TaskFormValues = {
     title: existingTask?.title || "",
@@ -80,70 +91,75 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
     defaultValues,
   });
   
-  const { data: users, isLoading: usersLoading } = useQuery<UserProfile[]>({
-    queryKey: ['users'],
-    queryFn: getAllUsers,
-    enabled: currentUser?.role === 'manager', // Managers assign tasks
-  });
+  function onSubmit(data: TaskFormValues) {
+    setIsSubmitting(true);
+    const finalAssigneeId = data.assigneeId === UNASSIGNED_VALUE ? undefined : data.assigneeId;
+    const calculatedProgress = data.status === 'done' ? 100 : (data.progress ?? 0);
 
-  const { data: allTasksForDeps, isLoading: tasksForDepsLoading } = useQuery<Task[]>({
-    queryKey: ['tasks', 'allForDepsForm'],
-    queryFn: () => getAllTasks(undefined, 'manager'), // Fetch all tasks for dep selection
-  });
-
-
-  const mutation = useMutation({
-    mutationFn: (data: TaskFormValues) => {
-      const finalAssigneeId = data.assigneeId === UNASSIGNED_VALUE ? null : data.assigneeId;
-      const calculatedProgress = data.status === 'done' ? 100 : (data.progress ?? 0);
-
-      const taskPayload: Omit<Task, "id" | "createdAt" | "updatedAt" | "assigneeName"> = {
-        title: data.title,
-        description: data.description,
-        status: data.status,
-        priority: data.priority,
-        dueDate: data.dueDate ? format(data.dueDate, "yyyy-MM-dd") : null,
-        assigneeId: finalAssigneeId,
-        dependencies: data.dependencies,
-        progress: calculatedProgress,
-        userId: currentUser?.uid, // Associate task with current user
-      };
-
+    try {
       if (existingTask?.id) {
-        return updateTaskInFirestore(existingTask.id, taskPayload);
+        // Update existing task
+        const taskIndex = mockTasks.findIndex(t => t.id === existingTask.id);
+        if (taskIndex !== -1) {
+          const oldTask = mockTasks[taskIndex];
+          const updatedTask = {
+            ...oldTask,
+            ...data,
+            assigneeId: finalAssigneeId,
+            dueDate: data.dueDate ? formatISO(data.dueDate) : undefined,
+            updatedAt: formatISO(new Date()),
+            progress: calculatedProgress,
+          };
+          mockTasks[taskIndex] = updatedTask;
+
+          // Notifications for updates
+          if (oldTask.assigneeId !== updatedTask.assigneeId && updatedTask.assigneeId) {
+            notifyEmployeeOfTaskAssignment(updatedTask, updatedTask.assigneeId);
+          }
+          if (oldTask.status !== updatedTask.status || oldTask.progress !== updatedTask.progress) {
+            notifyManagerOfProgressChange(updatedTask, currentUser?.name);
+          }
+          if (updatedTask.status === 'done' && oldTask.status !== 'done') {
+            notifyManagerOfTaskCompletion(updatedTask, currentUser?.name);
+            checkAndNotifyForDependentTasks(updatedTask);
+          }
+          toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
+        }
       } else {
-        return addTaskToFirestore(taskPayload);
+        // Create new task
+        const newTask: Task = {
+          id: `task-${Date.now()}`,
+          ...data,
+          assigneeId: finalAssigneeId,
+          dueDate: data.dueDate ? formatISO(data.dueDate) : undefined,
+          createdAt: formatISO(new Date()),
+          updatedAt: formatISO(new Date()),
+          progress: calculatedProgress,
+          userId: currentUser?.uid, 
+        };
+        mockTasks.push(newTask);
+
+        // Notifications for new task
+        if (newTask.assigneeId) {
+          notifyEmployeeOfTaskAssignment(newTask, newTask.assigneeId);
+        }
+        toast({ title: "Task Created", description: `New task "${data.title}" has been created.` });
       }
-    },
-    onSuccess: (result) => { // result is void for update, Task for add
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      if (existingTask?.id) {
-        queryClient.invalidateQueries({ queryKey: ['task', existingTask.id] });
-        toast({ title: "Task Updated", description: `Task "${form.getValues("title")}" has been updated.` });
-      } else {
-        toast({ title: "Task Created", description: `New task "${form.getValues("title")}" has been created.` });
-      }
-      
-      // TODO: Re-integrate notification logic here, e.g. by calling service methods
-      // This would involve fetching the full task object if it was just created (result might be the new Task)
-      // and comparing old vs new for updates.
 
       if (onSubmitSuccess) {
         onSubmitSuccess();
       } else {
         router.push("/tasks");
       }
-    },
-    onError: (error: Error) => {
-      toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
+    } catch (error) {
+      console.error("Error saving task:", error);
+      toast({ title: "Operation Failed", description: "Could not save the task.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
-  });
-
-  function onSubmit(data: TaskFormValues) {
-    mutation.mutate(data);
   }
   
-  const availableDependencies = (allTasksForDeps || []).filter(t => t.id !== existingTask?.id);
+  const availableDependencies = allTasksForDeps.filter(t => t.id !== existingTask?.id);
 
   return (
     <Form {...form}>
@@ -155,7 +171,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
             <FormItem>
               <FormLabel>Title</FormLabel>
               <FormControl>
-                <Input placeholder="Enter task title" {...field} disabled={mutation.isPending} />
+                <Input placeholder="Enter task title" {...field} disabled={isSubmitting} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -169,7 +185,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Enter task description (optional)" {...field} disabled={mutation.isPending} />
+                <Textarea placeholder="Enter task description (optional)" {...field} disabled={isSubmitting} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -183,7 +199,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Status</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={mutation.isPending}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select status" />
@@ -207,7 +223,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Priority</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={mutation.isPending}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select priority" />
@@ -241,7 +257,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                           "w-full pl-3 text-left font-normal",
                           !field.value && "text-muted-foreground"
                         )}
-                        disabled={mutation.isPending}
+                        disabled={isSubmitting}
                       >
                         {field.value ? (
                           format(field.value, "PPP")
@@ -256,7 +272,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                     <Calendar
                       mode="single"
                       selected={field.value}
-                      onSelect={(date) => field.onChange(date || null)} // Handle undefined from onSelect
+                      onSelect={(date) => field.onChange(date || null)}
                       disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} 
                       initialFocus
                     />
@@ -276,7 +292,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                 <Select 
                     onValueChange={field.onChange} 
                     defaultValue={field.value || UNASSIGNED_VALUE} 
-                    disabled={usersLoading || mutation.isPending || currentUser?.role !== 'manager'}
+                    disabled={isSubmitting || currentUser?.role !== 'manager'}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -285,8 +301,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                   </FormControl>
                   <SelectContent>
                     <SelectItem value={UNASSIGNED_VALUE}>Unassigned</SelectItem>
-                    {usersLoading && <SelectItem value="loading" disabled>Loading users...</SelectItem>}
-                    {users?.filter(u => u.role === 'employee').map(user => (
+                    {users.filter(u => u.role === 'employee').map(user => (
                       <SelectItem key={user.uid} value={user.uid}>{user.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -308,7 +323,6 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                   Select tasks that must be completed before this task can start.
                 </FormDescription>
               </div>
-              {tasksForDepsLoading ? <p>Loading tasks for dependencies...</p> : (
               <ScrollArea className="h-40 w-full rounded-md border p-4">
                 {availableDependencies.map((depTask) => (
                   <FormField
@@ -333,7 +347,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                                       )
                                     );
                               }}
-                              disabled={mutation.isPending}
+                              disabled={isSubmitting}
                             />
                           </FormControl>
                           <FormLabel className="font-normal">
@@ -348,7 +362,6 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                     <p className="text-sm text-muted-foreground">No other tasks available to set as dependencies.</p>
                 )}
               </ScrollArea>
-              )}
               <FormMessage />
             </FormItem>
           )}
@@ -369,7 +382,7 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
                     max="100" 
                     value={numericValue}
                     onChange={e => field.onChange(parseInt(e.target.value, 10))} 
-                    disabled={mutation.isPending}
+                    disabled={isSubmitting}
                     />
                 </FormControl>
                 <FormMessage />
@@ -379,11 +392,11 @@ export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps)
         />
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.back()} disabled={mutation.isPending}>
+          <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {existingTask ? "Update Task" : "Create Task"}
           </Button>
         </div>

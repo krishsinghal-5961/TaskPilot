@@ -1,95 +1,103 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Task, UserProfile } from "@/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { TaskStatusBadge, TaskPriorityBadge } from "./TaskBadges";
-import { CalendarDays, UserCircle, Link as LinkIcon, Edit, Percent } from "lucide-react";
+import { CalendarDays, UserCircle, Link as LinkIcon, Edit, Percent, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, formatISO } from "date-fns";
 import { UpdateTaskProgressDialog } from "./UpdateTaskProgressDialog";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTaskById, updateTaskInFirestore, getAllTasks } from "@/services/taskService";
-import { getUserProfile } from "@/services/userService";
-// import {
-//   notifyManagerOfProgressChange,
-//   notifyManagerOfTaskCompletion,
-//   checkAndNotifyForDependentTasks
-// } from "@/lib/notificationService"; // Needs update for Firestore
+import { mockTasks, mockUsers } from "@/lib/mock-data"; // Using mock data
+import { notifyManagerOfProgressChange, notifyManagerOfTaskCompletion, checkAndNotifyForDependentTasks } from "@/lib/notificationService";
+
 
 interface TaskDetailViewProps {
   taskId: string;
-  initialTask?: Task | null; // Allow pre-fetched task
+  initialTask?: Task | null; 
 }
 
 export function TaskDetailView({ taskId, initialTask }: TaskDetailViewProps) {
   const { toast } = useToast();
   const { currentUser } = useAuth();
-  const queryClient = useQueryClient();
+  const [task, setTask] = useState<Task | null | undefined>(initialTask);
+  const [assignee, setAssignee] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(!initialTask);
+  const [refreshKey, setRefreshKey] = useState(0); // For re-fetching/re-calculating
 
-  const { data: task, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
-    queryKey: ['task', taskId],
-    queryFn: () => getTaskById(taskId),
-    initialData: initialTask, // Use pre-fetched data if available
-    enabled: !!taskId,
-  });
-
-  const { data: assignee, isLoading: assigneeLoading } = useQuery<UserProfile | null>({
-    queryKey: ['userProfile', task?.assigneeId],
-    queryFn: () => task?.assigneeId ? getUserProfile(task.assigneeId) : null,
-    enabled: !!task?.assigneeId,
-  });
+  useEffect(() => {
+    if (!initialTask || refreshKey > 0) { // Fetch if no initial task or if refresh is triggered
+      setIsLoading(true);
+      const foundTask = mockTasks.find(t => t.id === taskId);
+      setTask(foundTask || null);
+      if (foundTask?.assigneeId) {
+        const foundAssignee = mockUsers.find(u => u.uid === foundTask.assigneeId);
+        setAssignee(foundAssignee || null);
+      } else {
+        setAssignee(null);
+      }
+      setIsLoading(false);
+    } else if (initialTask) { // Use initial task if provided
+      setTask(initialTask);
+      if (initialTask.assigneeId) {
+        const foundAssignee = mockUsers.find(u => u.uid === initialTask.assigneeId);
+        setAssignee(foundAssignee || null);
+      } else {
+        setAssignee(null);
+      }
+      setIsLoading(false);
+    }
+  }, [taskId, initialTask, refreshKey]);
   
-  const { data: allTasksForDeps = [] } = useQuery<Task[]>({
-    queryKey: ['tasks', 'allForDeps'], // A broader key for all tasks if needed for dependencies
-    queryFn: () => getAllTasks(undefined, 'manager'), // Fetch all tasks for dep resolution
-    enabled: !!task?.dependencies && task.dependencies.length > 0,
-  });
-
   const dependencies = useMemo(() => {
     if (!task || !task.dependencies || task.dependencies.length === 0) return [];
-    return allTasksForDeps.filter(t => task.dependencies!.includes(t.id));
-  }, [task, allTasksForDeps]);
+    return mockTasks.filter(t => task.dependencies!.includes(t.id));
+  }, [task]);
 
 
-  const updateProgressMutation = useMutation({
-    mutationFn: (variables: { progress: number }) => {
-        if (!task) throw new Error("Task not loaded");
-        const newStatus = variables.progress === 100 ? 'done' : (variables.progress > 0 && task.status === 'todo' ? 'in-progress' : task.status);
-        return updateTaskInFirestore(taskId, { progress: variables.progress, status: newStatus });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] }); // Invalidate list view
+  const handleUpdateProgress = (id: string, newProgress: number) => {
+    if (!task) return;
+    const taskIndex = mockTasks.findIndex(t => t.id === id);
+    if (taskIndex !== -1) {
+      const oldStatus = mockTasks[taskIndex].status;
+      const newStatus = newProgress === 100 ? 'done' : (newProgress > 0 && mockTasks[taskIndex].status === 'todo' ? 'in-progress' : mockTasks[taskIndex].status);
+      
+      mockTasks[taskIndex] = {
+        ...mockTasks[taskIndex],
+        progress: newProgress,
+        status: newStatus,
+        updatedAt: formatISO(new Date())
+      };
+      
+      setRefreshKey(prev => prev + 1); // Trigger re-fetch/re-render of this component's data
+      
       toast({
         title: "Progress Updated",
-        description: `Task "${task?.title}" progress set to ${variables.progress}%.`,
+        description: `Task "${mockTasks[taskIndex].title}" progress set to ${newProgress}%.`,
       });
-      // TODO: Add notification logic
-    },
-    onError: (error: Error) => {
-        toast({ variant: "destructive", title: "Update Failed", description: error.message });
-    }
-  });
 
-  const handleUpdateProgress = (id: string, progress: number) => {
-    // id is task.id, already available as taskId
-    updateProgressMutation.mutate({ progress });
+      if (newStatus === 'done' && oldStatus !== 'done') {
+        notifyManagerOfTaskCompletion(mockTasks[taskIndex], currentUser?.name);
+        checkAndNotifyForDependentTasks(mockTasks[taskIndex]);
+      } else if (mockTasks[taskIndex].progress !== task.progress || newStatus !== oldStatus) { // Check if actual progress or status changed
+         notifyManagerOfProgressChange(mockTasks[taskIndex], currentUser?.name);
+      }
+    } else {
+      toast({ variant: "destructive", title: "Update Failed", description: "Task not found for update." });
+    }
   };
 
-  if (taskLoading) {
+  if (isLoading || task === undefined) {
     return <Card className="shadow-md"><CardContent><p className="p-6 text-center">Loading task details...</p></CardContent></Card>;
   }
-  if (taskError) {
-    return <Card className="shadow-md"><CardContent><p className="p-6 text-center text-destructive">Error: {(taskError as Error).message}</p></CardContent></Card>;
-  }
+
   if (!task) {
     return <Card className="shadow-md"><CardContent><p className="p-6 text-center">Task not found.</p></CardContent></Card>;
   }
@@ -136,20 +144,19 @@ export function TaskDetailView({ taskId, initialTask }: TaskDetailViewProps) {
           </div>
         )}
 
-        {assigneeLoading && <p>Loading assignee...</p>}
         {assignee && (
           <div>
             <h4 className="font-semibold mb-1 flex items-center"><UserCircle className="mr-2 h-4 w-4 text-muted-foreground" />Assignee</h4>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar"/>
+                <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar" />
                 <AvatarFallback>{getInitials(assignee.name)}</AvatarFallback>
               </Avatar>
               <span>{assignee.name}</span>
             </div>
           </div>
         )}
-        {!assignee && !assigneeLoading && task.assigneeId && <p>Assignee details not found.</p>}
+        {!assignee && task.assigneeId && <p>Assignee details not found.</p>}
 
 
         <div>
@@ -159,8 +166,8 @@ export function TaskDetailView({ taskId, initialTask }: TaskDetailViewProps) {
             <span>{task.progress}%</span>
             {(currentUser?.role === 'manager' || currentUser?.uid === task.assigneeId) && (
                 <UpdateTaskProgressDialog task={task} onUpdateProgress={handleUpdateProgress}>
-                <Button variant="ghost" size="sm" disabled={updateProgressMutation.isPending}>
-                    {updateProgressMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+                <Button variant="ghost" size="sm">
+                    Update
                 </Button>
                 </UpdateTaskProgressDialog>
             )}

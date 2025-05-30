@@ -41,7 +41,7 @@ const editNameSchema = z.object({
 type EditNameFormValues = z.infer<typeof editNameSchema>;
 
 export default function SettingsPage() {
-  const { currentUser, isLoading, updateCurrentUserDetails, firebaseUser } = useAuth();
+  const { currentUser, isLoading, updateCurrentUserDetails } = useAuth();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
@@ -78,7 +78,6 @@ export default function SettingsPage() {
 
   async function onEditNameSubmit(data: EditNameFormValues) {
     if (!currentUser) return;
-    // Only pass fields that are part of UserProfile and intended for update
     const success = await updateCurrentUserDetails({ name: data.name });
     if (success) {
       toast({ title: "Name Updated", description: "Your name has been successfully updated." });
@@ -171,7 +170,7 @@ export default function SettingsPage() {
 
             <div className="p-4 border rounded-lg">
               <h3 className="font-semibold text-lg">Notification Settings</h3>
-              <p className="text-muted-foreground">Manage how you receive notifications. (Coming soon)</p>
+              <p className="text-muted-foreground">Manage how you receive notifications. (Using mock notifications)</p>
             </div>
           </div>
         </CardContent>

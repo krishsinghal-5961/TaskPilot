@@ -1,13 +1,12 @@
 
-"use client"; // Add this directive
+"use client"; 
 
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+// QueryClientProvider and ReactQueryDevtools removed
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -20,10 +19,6 @@ const geistMono = Geist_Mono({
 });
 
 // Removed metadata export as it's not allowed in Client Components.
-// Consider using next/head for basic metadata or other patterns.
-
-// Create a client
-const queryClient = new QueryClient();
 
 export default function RootLayout({
   children,
@@ -33,16 +28,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`} suppressHydrationWarning={true}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <AuthProvider>
-              <AppShell>
-                {children}
-              </AppShell>
-            </AuthProvider>
-          </ThemeProvider>
-          <ReactQueryDevtools initialIsOpen={false} />
-        </QueryClientProvider>
+        {/* QueryClientProvider removed */}
+        <ThemeProvider>
+          <AuthProvider>
+            <AppShell>
+              {children}
+            </AppShell>
+          </AuthProvider>
+        </ThemeProvider>
+        {/* ReactQueryDevtools removed */}
       </body>
     </html>
   );

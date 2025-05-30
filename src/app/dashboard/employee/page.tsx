@@ -3,7 +3,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,25 +11,26 @@ import { Loader2, ListChecks, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { TaskStatusBadge, TaskPriorityBadge } from "@/components/tasks/TaskBadges";
 import { format, parseISO } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { getAllTasks } from "@/services/taskService";
+import { mockTasks } from "@/lib/mock-data"; // Using mock data
 import type { Task } from "@/types";
 
 export default function EmployeeDashboardPage() {
   const { currentUser, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && (!currentUser || currentUser.role !== "employee")) {
-      router.replace("/login");
+    if (!authLoading) {
+      if (!currentUser || currentUser.role !== "employee") {
+        router.replace("/login");
+      } else {
+        // Load tasks assigned to this employee
+        setTasks(mockTasks.filter(task => task.assigneeId === currentUser.uid));
+        setIsDataLoading(false);
+      }
     }
   }, [currentUser, authLoading, router]);
-
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
-    queryKey: ['tasks', currentUser?.uid, 'employeeDashboard'],
-    queryFn: () => getAllTasks(currentUser?.uid, 'employee'),
-    enabled: !!currentUser && currentUser.role === 'employee',
-  });
 
   const dashboardStats = useMemo(() => {
     const myOpenTasks = tasks.filter(task => task.status !== "done").length;
@@ -38,7 +39,7 @@ export default function EmployeeDashboardPage() {
   }, [tasks]);
 
 
-  if (authLoading || !currentUser || tasksLoading) {
+  if (authLoading || isDataLoading || !currentUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
