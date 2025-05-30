@@ -19,8 +19,8 @@ export function UserMenu() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Simulate fetching current user
-    setCurrentUser(mockUsers[0]);
+    // Simulate fetching current user - set to Bob The Builder (index 1)
+    setCurrentUser(mockUsers[1]); 
   }, []);
 
   if (!currentUser) {
