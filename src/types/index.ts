@@ -25,6 +25,7 @@ export interface User {
   email: string;
   currentWorkload?: number; // 0-100, for AI assignment
   role: UserRole;
+  designation?: string; // Added designation
 }
 
 export interface Notification {

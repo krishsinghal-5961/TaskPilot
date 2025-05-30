@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2 } from "lucide-react";
-// Import components for manager dashboard here once created
-// For now, using the old dashboard page content as a base
 import { SummaryCard } from "@/components/dashboard/SummaryCard";
 import { mockTasks, mockUsers } from "@/lib/mock-data";
 import { AlertTriangle, CheckCircle2, ListTodo, Users, PackageOpen } from "lucide-react";
@@ -39,7 +37,6 @@ export default function ManagerDashboardPage() {
     );
   }
   
-  // Mock data calculations (will be replaced with actual data fetching for manager)
   const totalTasks = mockTasks.length;
   const completedTasks = mockTasks.filter(task => task.status === "done").length;
   const overdueTasks = mockTasks.filter(task => task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done").length;
@@ -62,7 +59,7 @@ export default function ManagerDashboardPage() {
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <SummaryCard title="Total Tasks" value={totalTasks} icon={PackageOpen} footerText="Across all projects" />
-        <SummaryCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} footerText={`${Math.round((completedTasks/totalTasks)*100)}% completion`} />
+        <SummaryCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} footerText={`${totalTasks > 0 ? Math.round((completedTasks/totalTasks)*100) : 0}% completion`} />
         <SummaryCard title="Overdue Tasks" value={overdueTasks} icon={AlertTriangle} changeType={overdueTasks > 0 ? "negative" : undefined} />
         <SummaryCard title="High Priority Active" value={highPriorityTasks} icon={ListTodo} />
       </div>
@@ -113,7 +110,7 @@ export default function ManagerDashboardPage() {
             <CardTitle>Team Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockUsers.filter(u => u.role === 'employee').slice(0,4).map(user => ( // Show employees
+            {mockUsers.filter(u => u.role === 'employee').slice(0,4).map(user => ( 
               <div key={user.id} className="flex items-center gap-3 p-2 bg-secondary/30 rounded-lg">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="team member avatar" />
@@ -121,6 +118,7 @@ export default function ManagerDashboardPage() {
                 </Avatar>
                 <div>
                   <p className="font-medium">{user.name}</p>
+                  {user.designation && <p className="text-xs text-muted-foreground">{user.designation}</p>}
                   <p className="text-xs text-muted-foreground">Workload: {user.currentWorkload || 0}%</p>
                 </div>
               </div>

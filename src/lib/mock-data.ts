@@ -5,10 +5,10 @@ import { addDays, subDays, formatISO } from "date-fns";
 const today = new Date();
 
 export const mockUsers: User[] = [
-  { id: "user-1", name: "Priya Sharma", email: "priya.sharma@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=PS", currentWorkload: 30, role: "manager" },
-  { id: "user-2", name: "Rohan Mehra", email: "rohan.mehra@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=RM", currentWorkload: 70, role: "employee" },
-  { id: "user-3", name: "Aisha Khan", email: "aisha.khan@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=AK", currentWorkload: 50, role: "employee" },
-  { id: "user-4", name: "Vikram Singh", email: "vikram.singh@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=VS", currentWorkload: 20, role: "employee" },
+  { id: "user-1", name: "Priya Sharma", email: "priya.sharma@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=PS", currentWorkload: 30, role: "manager", designation: "Engineering Manager" },
+  { id: "user-2", name: "Rohan Mehra", email: "rohan.mehra@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=RM", currentWorkload: 70, role: "employee", designation: "Senior Software Engineer" },
+  { id: "user-3", name: "Aisha Khan", email: "aisha.khan@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=AK", currentWorkload: 50, role: "employee", designation: "Frontend Developer" },
+  { id: "user-4", name: "Vikram Singh", email: "vikram.singh@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=VS", currentWorkload: 20, role: "employee", designation: "QA Engineer" },
 ];
 
 export const mockTasks: Task[] = [
@@ -19,7 +19,7 @@ export const mockTasks: Task[] = [
     status: "in-progress" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 7)),
-    assigneeId: "user-1", // Priya Sharma (manager) can also be assigned tasks
+    assigneeId: "user-1", 
     progress: 60,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),
@@ -60,7 +60,7 @@ export const mockTasks: Task[] = [
     dueDate: formatISO(addDays(today, 21)),
     assigneeId: "user-1",
     progress: 10,
-    dependencies: ["task-2"], // Depends on authentication system
+    dependencies: ["task-2"], 
     createdAt: formatISO(subDays(today, 1)),
     updatedAt: formatISO(subDays(today, 1)),
   },
@@ -114,14 +114,14 @@ export const mockNotifications: Notification[] = [
   },
   {
     id: "notif-2",
-    message: "Priya Sharma updated progress on 'Design Homepage UI'.", // Updated name
+    message: "Priya Sharma updated progress on 'Design Homepage UI'.",
     timestamp: formatISO(subDays(today, 0)),
     read: false,
     link: "/tasks/task-1",
   },
   {
     id: "notif-3",
-    message: "Task 'Setup Project Backend' was completed by Aisha Khan.", // Updated name
+    message: "Task 'Setup Project Backend' was completed by Aisha Khan.",
     timestamp: formatISO(subDays(today, 2)),
     read: true,
     link: "/tasks/task-3",

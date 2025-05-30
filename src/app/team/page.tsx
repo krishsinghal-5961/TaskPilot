@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2, Users, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { mockUsers } from "@/lib/mock-data"; // Direct import
+import { mockUsers } from "@/lib/mock-data"; 
 import type { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 const addMemberSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Please enter a valid email address." }),
+  designation: z.string().min(2, {message: "Designation must be at least 2 characters."}),
 });
 type AddMemberFormValues = z.infer<typeof addMemberSchema>;
 
@@ -46,17 +47,16 @@ export default function TeamManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // No longer using local state for teamMembers list. Will derive from mockUsers directly.
-  // const [teamMembers, setTeamMembers] = useState<User[]>(initialMockUsers.filter(user => user.role === 'employee'));
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); // To force re-render after adding member
+  const [refreshKey, setRefreshKey] = useState(0); 
 
   const form = useForm<AddMemberFormValues>({
     resolver: zodResolver(addMemberSchema),
     defaultValues: {
       name: "",
       email: "",
+      designation: "",
     },
   });
 
@@ -74,15 +74,15 @@ export default function TeamManagementPage() {
       id: `user-${Date.now()}`,
       name: data.name,
       email: data.email,
+      designation: data.designation,
       avatarUrl: `https://placehold.co/100x100.png?text=${getInitials(data.name)}`,
       currentWorkload: 0,
       role: "employee",
     };
 
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    mockUsers.push(newUser); // Add to the global mock data
+    mockUsers.push(newUser); 
 
     toast({
       title: "Member Added",
@@ -91,7 +91,7 @@ export default function TeamManagementPage() {
     form.reset();
     setIsAddMemberDialogOpen(false);
     setIsSubmitting(false);
-    setRefreshKey(prev => prev + 1); // Trigger re-render to show new member
+    setRefreshKey(prev => prev + 1); 
   };
 
   if (authIsLoading || !currentUser || currentUser.role !== "manager") {
@@ -103,7 +103,6 @@ export default function TeamManagementPage() {
     );
   }
 
-  // Derive displayedTeamMembers directly from mockUsers on each render
   const displayedTeamMembers = mockUsers.filter(user => user.role === 'employee');
 
   return (
@@ -153,6 +152,19 @@ export default function TeamManagementPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="designation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Designation</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Software Engineer" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setIsAddMemberDialogOpen(false)} disabled={isSubmitting}>
                       Cancel
@@ -186,10 +198,10 @@ export default function TeamManagementPage() {
                     <div>
                       <p className="font-semibold">{member.name}</p>
                       <p className="text-sm text-muted-foreground">{member.email}</p>
+                      {member.designation && <p className="text-xs text-muted-foreground">{member.designation}</p>}
                       <p className="text-xs text-muted-foreground">Workload: {member.currentWorkload || 0}%</p>
                     </div>
                   </CardContent>
-                  {/* Add actions like Edit/Remove member later */}
                 </Card>
               ))}
             </div>
