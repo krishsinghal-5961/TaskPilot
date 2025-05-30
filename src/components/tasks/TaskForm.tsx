@@ -23,11 +23,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { mockUsers, mockTasks } from "@/lib/mock-data";
-import type { Task, TaskStatus, TaskPriority } from "@/types";
+import type { Task } from "@/types";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  notifyEmployeeOfTaskAssignment,
+  notifyManagerOfProgressChange,
+  notifyManagerOfTaskCompletion,
+  checkAndNotifyForDependentTasks
+} from "@/lib/notificationService";
 
 const UNASSIGNED_VALUE = "_UNASSIGNED_";
 
@@ -37,7 +44,7 @@ const taskFormSchema = z.object({
   status: z.enum(["todo", "in-progress", "done", "blocked"]),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.date().optional(),
-  assigneeId: z.string(), // Will be user ID or UNASSIGNED_VALUE
+  assigneeId: z.string(), 
   dependencies: z.array(z.string()).optional(),
   progress: z.number().min(0).max(100).optional(),
 });
@@ -49,19 +56,20 @@ interface TaskFormProps {
   onSubmitSuccess?: () => void;
 }
 
-export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
+export function TaskForm({ task: existingTask, onSubmitSuccess }: TaskFormProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   const defaultValues: TaskFormValues = {
-    title: task?.title || "",
-    description: task?.description || "",
-    status: task?.status || "todo",
-    priority: task?.priority || "medium",
-    dueDate: task?.dueDate ? parseISO(task.dueDate) : undefined,
-    assigneeId: task?.assigneeId || UNASSIGNED_VALUE,
-    dependencies: task?.dependencies || [],
-    progress: task?.progress || 0,
+    title: existingTask?.title || "",
+    description: existingTask?.description || "",
+    status: existingTask?.status || "todo",
+    priority: existingTask?.priority || "medium",
+    dueDate: existingTask?.dueDate ? parseISO(existingTask.dueDate) : undefined,
+    assigneeId: existingTask?.assigneeId || UNASSIGNED_VALUE,
+    dependencies: existingTask?.dependencies || [],
+    progress: existingTask?.progress || 0,
   };
 
   const form = useForm<TaskFormValues>({
@@ -70,38 +78,74 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
   });
 
   function onSubmit(data: TaskFormValues) {
+    const currentUserName = currentUser?.name;
     const calculatedProgress = data.status === 'done' ? 100 : (data.progress ?? 0);
+    const finalAssigneeId = data.assigneeId === UNASSIGNED_VALUE ? undefined : data.assigneeId;
+
     const taskMutationData: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string } = {
       title: data.title,
       description: data.description,
       status: data.status,
       priority: data.priority,
       dueDate: data.dueDate ? format(data.dueDate, "yyyy-MM-dd") : undefined,
-      assigneeId: data.assigneeId === UNASSIGNED_VALUE ? undefined : data.assigneeId,
+      assigneeId: finalAssigneeId,
       dependencies: data.dependencies,
       progress: calculatedProgress,
     };
     
-    if (task && task.id) { // Editing existing task
-      const taskIndex = mockTasks.findIndex(t => t.id === task.id);
+    if (existingTask && existingTask.id) { // Editing existing task
+      const taskIndex = mockTasks.findIndex(t => t.id === existingTask.id);
       if (taskIndex !== -1) {
-        mockTasks[taskIndex] = { 
-            ...mockTasks[taskIndex], 
+        const oldTask = mockTasks[taskIndex];
+        const updatedTaskObject: Task = { 
+            ...oldTask, 
             ...taskMutationData, 
+            id: existingTask.id, // ensure id is not overwritten if taskMutationData.id is undefined
             updatedAt: new Date().toISOString() 
         };
+        mockTasks[taskIndex] = updatedTaskObject;
+
+        // Notifications for Edit
+        if (finalAssigneeId && finalAssigneeId !== oldTask.assigneeId) {
+          notifyEmployeeOfTaskAssignment(updatedTaskObject, finalAssigneeId);
+        }
+        if (data.progress !== undefined && data.progress !== oldTask.progress) {
+          notifyManagerOfProgressChange(updatedTaskObject, currentUserName);
+        }
+        if (data.status === 'done' && oldTask.status !== 'done') {
+          notifyManagerOfTaskCompletion(updatedTaskObject, currentUserName);
+          checkAndNotifyForDependentTasks(updatedTaskObject);
+        } else if (data.status !== 'done' && data.status !== oldTask.status && data.progress === oldTask.progress) {
+          // If status changed but not to 'done' and progress didn't change, consider it a progress-like update for manager
+          // This is a bit generic, specific progress updates are better
+           notifyManagerOfProgressChange(updatedTaskObject, currentUserName); // Or a more generic status update notif
+        }
+
+
+        toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
       }
-      toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
     } else { // Creating new task
       const newTask: Task = {
         id: `task-${Date.now()}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         ...taskMutationData,
-        // Ensure progress is part of the new task object if not set by status
         progress: taskMutationData.progress !== undefined ? taskMutationData.progress : (taskMutationData.status === 'done' ? 100 : 0),
       };
       mockTasks.push(newTask);
+
+      // Notifications for New Task
+      if (newTask.assigneeId) {
+        notifyEmployeeOfTaskAssignment(newTask, newTask.assigneeId);
+      }
+      if (newTask.progress > 0 && newTask.status !== 'done') {
+         notifyManagerOfProgressChange(newTask, currentUserName);
+      }
+      if (newTask.status === 'done') {
+        notifyManagerOfTaskCompletion(newTask, currentUserName);
+        checkAndNotifyForDependentTasks(newTask);
+      }
+
       toast({ title: "Task Created", description: `New task "${data.title}" has been created.` });
     }
     
@@ -109,11 +153,10 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
       onSubmitSuccess();
     } else {
       router.push("/tasks");
-      // router.refresh(); // Consider if needed, might be handled by refreshKey on TasksPage
     }
   }
 
-  const availableDependencies = mockTasks.filter(t => t.id !== task?.id);
+  const availableDependencies = mockTasks.filter(t => t.id !== existingTask?.id);
 
 
   return (
@@ -251,7 +294,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
                   </FormControl>
                   <SelectContent>
                     <SelectItem value={UNASSIGNED_VALUE}>Unassigned</SelectItem>
-                    {mockUsers.map(user => (
+                    {mockUsers.filter(u => u.role === 'employee').map(user => (
                       <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -320,7 +363,6 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
           control={form.control}
           name="progress"
           render={({ field }) => {
-            // Ensure value is a number for the input
             const numericValue = typeof field.value === 'number' ? field.value : 0;
             return (
                 <FormItem>
@@ -344,7 +386,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
-          <Button type="submit">{task ? "Update Task" : "Create Task"}</Button>
+          <Button type="submit">{existingTask ? "Update Task" : "Create Task"}</Button>
         </div>
       </form>
     </Form>

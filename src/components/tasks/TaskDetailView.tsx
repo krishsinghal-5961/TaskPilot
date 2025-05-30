@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,6 +15,12 @@ import { format, parseISO } from "date-fns";
 import { UpdateTaskProgressDialog } from "./UpdateTaskProgressDialog";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  notifyManagerOfProgressChange,
+  notifyManagerOfTaskCompletion,
+  checkAndNotifyForDependentTasks
+} from "@/lib/notificationService";
 
 interface TaskDetailViewProps {
   taskId: string;
@@ -24,6 +31,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const [assignee, setAssignee] = useState<User | null>(null);
   const [dependencies, setDependencies] = useState<Task[]>([]);
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current user for notifications
 
   useEffect(() => {
     const foundTask = mockTasks.find(t => t.id === taskId);
@@ -35,16 +43,39 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       if (foundTask.dependencies && foundTask.dependencies.length > 0) {
         setDependencies(mockTasks.filter(t => foundTask.dependencies!.includes(t.id)));
       }
+    } else {
+      setTask(null); // Ensure task is null if not found
+      setAssignee(null);
+      setDependencies([]);
     }
-  }, [taskId]);
+  }, [taskId]); // Rerun if taskId changes
 
   const handleUpdateProgress = (id: string, progress: number) => {
     if (task && task.id === id) {
-      const updatedTask = { ...task, progress, status: progress === 100 ? 'done' : (progress > 0 && task.status === 'todo' ? 'in-progress' : task.status), updatedAt: new Date().toISOString() };
+      const oldProgress = task.progress;
+      const oldStatus = task.status;
+
+      const newStatus = progress === 100 ? 'done' : (progress > 0 && task.status === 'todo' ? 'in-progress' : task.status);
+      const updatedTask = { 
+        ...task, 
+        progress, 
+        status: newStatus, 
+        updatedAt: new Date().toISOString() 
+      };
       setTask(updatedTask);
-      // In a real app, update mockTasks or call API
+      
+      // Update mockTasks array
       const taskIndex = mockTasks.findIndex(t => t.id === id);
       if (taskIndex !== -1) mockTasks[taskIndex] = updatedTask;
+
+      // Notifications
+      if (progress !== oldProgress) {
+        notifyManagerOfProgressChange(updatedTask, currentUser?.name);
+      }
+      if (progress === 100 && oldStatus !== 'done') {
+        notifyManagerOfTaskCompletion(updatedTask, currentUser?.name);
+        checkAndNotifyForDependentTasks(updatedTask);
+      }
 
       toast({
         title: "Progress Updated",
@@ -63,11 +94,13 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl">{task.title}</CardTitle>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/tasks/${task.id}/edit`}> {/* Assuming an edit page */}
-              <Edit className="mr-2 h-4 w-4" /> Edit Task
-            </Link>
-          </Button>
+          {(currentUser?.role === 'manager' || currentUser?.id === task.assigneeId) && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/tasks/${task.id}/edit`}>
+                <Edit className="mr-2 h-4 w-4" /> Edit Task
+              </Link>
+            </Button>
+          )}
         </div>
         <CardDescription>
           Created: {format(parseISO(task.createdAt), "PPP p")} | Last updated: {format(parseISO(task.updatedAt), "PPP p")}
@@ -102,7 +135,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             <h4 className="font-semibold mb-1 flex items-center"><UserCircle className="mr-2 h-4 w-4 text-muted-foreground" />Assignee</h4>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar" />
+                <AvatarImage src={assignee.avatarUrl} alt={assignee.name} data-ai-hint="user avatar"/>
                 <AvatarFallback>{getInitials(assignee.name)}</AvatarFallback>
               </Avatar>
               <span>{assignee.name}</span>
@@ -115,9 +148,11 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
           <div className="flex items-center gap-2">
             <Progress value={task.progress} className="flex-1 h-3" />
             <span>{task.progress}%</span>
-            <UpdateTaskProgressDialog task={task} onUpdateProgress={handleUpdateProgress}>
-              <Button variant="ghost" size="sm">Update</Button>
-            </UpdateTaskProgressDialog>
+            {(currentUser?.role === 'manager' || currentUser?.id === task.assigneeId) && (
+                <UpdateTaskProgressDialog task={task} onUpdateProgress={handleUpdateProgress}>
+                <Button variant="ghost" size="sm">Update</Button>
+                </UpdateTaskProgressDialog>
+            )}
           </div>
         </div>
         

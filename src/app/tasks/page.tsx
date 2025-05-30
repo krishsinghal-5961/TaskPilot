@@ -27,6 +27,11 @@ import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import {
+  notifyManagerOfTaskCompletion,
+  checkAndNotifyForDependentTasks,
+  notifyManagerOfProgressChange
+} from "@/lib/notificationService";
 
 type SortConfig = {
   key: keyof Task | "assigneeName" | null;
@@ -40,7 +45,7 @@ export default function TasksPage() {
 
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "createdAt", direction: "descending" });
-  const [refreshKey, setRefreshKey] = useState(0); // Used to trigger re-evaluation of memos
+  const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -56,7 +61,7 @@ export default function TasksPage() {
     const taskToDelete = mockTasks.find(t => t.id === taskId);
     if (!taskToDelete) return;
 
-    if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.id /* && !taskToDelete.status */)) {
+    if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.id )) {
        const taskIndex = mockTasks.findIndex(task => task.id === taskId);
        if (taskIndex > -1) {
            mockTasks.splice(taskIndex, 1);
@@ -82,7 +87,17 @@ export default function TasksPage() {
     const taskToUpdate = mockTasks[taskToUpdateIndex];
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
+      const oldStatus = taskToUpdate.status;
       mockTasks[taskToUpdateIndex] = { ...taskToUpdate, status, updatedAt: new Date().toISOString() };
+      
+      if (status === 'done' && oldStatus !== 'done') {
+        mockTasks[taskToUpdateIndex].progress = 100; // Also set progress to 100
+        notifyManagerOfTaskCompletion(mockTasks[taskToUpdateIndex], currentUser?.name);
+        checkAndNotifyForDependentTasks(mockTasks[taskToUpdateIndex]);
+      }
+       // Consider if other status changes should notify manager about "progress"
+      // For now, specific progress updates and completion are clearer.
+
       toast({
         title: "Task Updated",
         description: `Task status changed to ${status}.`,
@@ -100,11 +115,23 @@ export default function TasksPage() {
   const handleUpdateProgress = (taskId: string, progress: number) => {
     const taskToUpdateIndex = mockTasks.findIndex(t => t.id === taskId);
     if (taskToUpdateIndex === -1) return;
+    
     const taskToUpdate = mockTasks[taskToUpdateIndex];
+    const oldProgress = taskToUpdate.progress;
+    const oldStatus = taskToUpdate.status;
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
       const newStatus = progress === 100 ? 'done' : (progress > 0 && taskToUpdate.status === 'todo' ? 'in-progress' : taskToUpdate.status);
       mockTasks[taskToUpdateIndex] = { ...taskToUpdate, progress, status: newStatus, updatedAt: new Date().toISOString() };
+      
+      if (progress !== oldProgress) {
+        notifyManagerOfProgressChange(mockTasks[taskToUpdateIndex], currentUser?.name);
+      }
+      if (progress === 100 && oldStatus !== 'done') {
+        notifyManagerOfTaskCompletion(mockTasks[taskToUpdateIndex], currentUser?.name);
+        checkAndNotifyForDependentTasks(mockTasks[taskToUpdateIndex]);
+      }
+      
       toast({
         title: "Progress Updated",
         description: `Task progress set to ${progress}%.`,
@@ -124,14 +151,14 @@ export default function TasksPage() {
   const filteredTasks = useMemo(() => {
     let currentTasksToShow: Task[];
     if (currentUser?.role === 'manager') {
-        currentTasksToShow = [...mockTasks]; // Use a copy for filtering
+        currentTasksToShow = [...mockTasks]; 
     } else if (currentUser?.role === 'employee') {
         currentTasksToShow = mockTasks.filter(task => task.assigneeId === currentUser.id);
     } else {
         currentTasksToShow = [];
     }
     
-    let filtered = [...currentTasksToShow]; // Start with role-based tasks
+    let filtered = [...currentTasksToShow]; 
 
     if (filters.searchTerm) {
       filtered = filtered.filter(task =>
@@ -149,7 +176,7 @@ export default function TasksPage() {
       filtered = filtered.filter(task => task.assigneeId === filters.assignee);
     }
     return filtered;
-  }, [filters, currentUser, refreshKey, getUserById]); // Added getUserById and refreshKey
+  }, [filters, currentUser, refreshKey, getUserById]); 
   
   const sortedTasks = useMemo(() => {
     let sortableTasks = [...filteredTasks];
@@ -295,4 +322,3 @@ export default function TasksPage() {
     </div>
   );
 }
-
