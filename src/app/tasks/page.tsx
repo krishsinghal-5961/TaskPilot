@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card"; // Added CardContent import
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TaskFilterControls } from "@/components/tasks/TaskFilterControls";
@@ -38,9 +38,9 @@ export default function TasksPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "createdAt", direction: "descending" });
+  const [refreshKey, setRefreshKey] = useState(0); // Used to trigger re-evaluation of memos
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -48,34 +48,25 @@ export default function TasksPage() {
     }
   }, [currentUser, authLoading, router]);
   
-  useEffect(() => {
-    // Simulate fetching tasks - will be adapted for roles
-    if (currentUser) {
-      if (currentUser.role === 'manager') {
-        setTasks(mockTasks); // Manager sees all tasks
-      } else {
-        setTasks(mockTasks.filter(task => task.assigneeId === currentUser.id)); // Employee sees their tasks
-      }
-    }
-  }, [currentUser]);
-
-
   const handleFilterChange = (newFilters: Record<string, string>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
   const handleDeleteTask = (taskId: string) => {
-    // Permission check: Only manager can delete or employee can delete their own UNASSIGNED task (example)
-    const taskToDelete = tasks.find(t => t.id === taskId);
+    const taskToDelete = mockTasks.find(t => t.id === taskId);
     if (!taskToDelete) return;
 
     if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.id /* && !taskToDelete.status */)) {
-       setTasks(prev => prev.filter(task => task.id !== taskId));
+       const taskIndex = mockTasks.findIndex(task => task.id === taskId);
+       if (taskIndex > -1) {
+           mockTasks.splice(taskIndex, 1);
+       }
         toast({
           title: "Task Deleted",
           description: `Task "${taskToDelete.title}" has been deleted.`,
           variant: "destructive",
         });
+        setRefreshKey(prev => prev + 1);
     } else {
         toast({
           title: "Permission Denied",
@@ -86,16 +77,17 @@ export default function TasksPage() {
   };
 
   const handleUpdateStatus = (taskId: string, status: TaskStatus) => {
-     // Permission check (simplified for now)
-    const taskToUpdate = tasks.find(t => t.id === taskId);
-    if (!taskToUpdate) return;
+    const taskToUpdateIndex = mockTasks.findIndex(t => t.id === taskId);
+    if (taskToUpdateIndex === -1) return;
+    const taskToUpdate = mockTasks[taskToUpdateIndex];
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
-      setTasks(prev => prev.map(task => task.id === taskId ? { ...task, status, updatedAt: new Date().toISOString() } : task));
+      mockTasks[taskToUpdateIndex] = { ...taskToUpdate, status, updatedAt: new Date().toISOString() };
       toast({
         title: "Task Updated",
         description: `Task status changed to ${status}.`,
       });
+      setRefreshKey(prev => prev + 1);
     } else {
        toast({
         title: "Permission Denied",
@@ -106,16 +98,18 @@ export default function TasksPage() {
   };
 
   const handleUpdateProgress = (taskId: string, progress: number) => {
-     // Permission check (simplified for now)
-    const taskToUpdate = tasks.find(t => t.id === taskId);
-     if (!taskToUpdate) return;
+    const taskToUpdateIndex = mockTasks.findIndex(t => t.id === taskId);
+    if (taskToUpdateIndex === -1) return;
+    const taskToUpdate = mockTasks[taskToUpdateIndex];
 
     if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
-      setTasks(prev => prev.map(task => task.id === taskId ? { ...task, progress, status: progress === 100 ? 'done' : (progress > 0 && task.status === 'todo' ? 'in-progress' : task.status), updatedAt: new Date().toISOString() } : task));
+      const newStatus = progress === 100 ? 'done' : (progress > 0 && taskToUpdate.status === 'todo' ? 'in-progress' : taskToUpdate.status);
+      mockTasks[taskToUpdateIndex] = { ...taskToUpdate, progress, status: newStatus, updatedAt: new Date().toISOString() };
       toast({
         title: "Progress Updated",
         description: `Task progress set to ${progress}%.`,
       });
+      setRefreshKey(prev => prev + 1);
     } else {
         toast({
         title: "Permission Denied",
@@ -128,25 +122,34 @@ export default function TasksPage() {
   const getUserById = useCallback((id?: string) => mockUsers.find(user => user.id === id), []);
 
   const filteredTasks = useMemo(() => {
-    let currentTasks = [...tasks];
+    let currentTasksToShow: Task[];
+    if (currentUser?.role === 'manager') {
+        currentTasksToShow = [...mockTasks]; // Use a copy for filtering
+    } else if (currentUser?.role === 'employee') {
+        currentTasksToShow = mockTasks.filter(task => task.assigneeId === currentUser.id);
+    } else {
+        currentTasksToShow = [];
+    }
+    
+    let filtered = [...currentTasksToShow]; // Start with role-based tasks
+
     if (filters.searchTerm) {
-      currentTasks = currentTasks.filter(task =>
+      filtered = filtered.filter(task =>
         task.title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
         task.description?.toLowerCase().includes(filters.searchTerm.toLowerCase())
       );
     }
     if (filters.status && filters.status !== "all") {
-      currentTasks = currentTasks.filter(task => task.status === filters.status);
+      filtered = filtered.filter(task => task.status === filters.status);
     }
     if (filters.priority && filters.priority !== "all") {
-      currentTasks = currentTasks.filter(task => task.priority === filters.priority);
+      filtered = filtered.filter(task => task.priority === filters.priority);
     }
-    // Only allow manager to filter by assignee for all users
     if (filters.assignee && filters.assignee !== "all" && currentUser?.role === 'manager') {
-      currentTasks = currentTasks.filter(task => task.assigneeId === filters.assignee);
+      filtered = filtered.filter(task => task.assigneeId === filters.assignee);
     }
-    return currentTasks;
-  }, [tasks, filters, currentUser]);
+    return filtered;
+  }, [filters, currentUser, refreshKey, getUserById]); // Added getUserById and refreshKey
   
   const sortedTasks = useMemo(() => {
     let sortableTasks = [...filteredTasks];
@@ -161,7 +164,6 @@ export default function TasksPage() {
           bValue = b[sortConfig.key] ? parseISO(b[sortConfig.key]!).getTime() : 0;
         }
          else {
-          // Type assertion needed here if sortConfig.key can be other Task keys
           aValue = a[sortConfig.key as keyof Task];
           bValue = b[sortConfig.key as keyof Task];
         }
@@ -208,7 +210,7 @@ export default function TasksPage() {
         title={currentUser.role === 'manager' ? "All Tasks" : "My Tasks"}
         description="Manage and track all your project tasks."
         actions={
-          currentUser.role === 'manager' && ( // Only manager can add new tasks for now
+          currentUser.role === 'manager' && (
             <Button asChild>
               <Link href="/tasks/new">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
@@ -220,12 +222,10 @@ export default function TasksPage() {
 
       <TaskFilterControls 
         onFilterChange={handleFilterChange} 
-        // Pass role to disable assignee filter for employees if needed
-        // showAssigneeFilter={currentUser.role === 'manager'} 
       />
 
       <Card className="shadow-md">
-        <CardContent className="p-0"> {/* Ensure CardContent is used if Table is direct child, or remove if Table has its own padding */}
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -276,7 +276,7 @@ export default function TasksPage() {
                         task={task} 
                         onDelete={handleDeleteTask} 
                         onUpdateStatus={handleUpdateStatus}
-                        canModify={canModify} // Pass down modify permission
+                        canModify={canModify}
                       />
                     </TableCell>
                   </TableRow>

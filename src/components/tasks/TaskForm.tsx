@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,15 +35,15 @@ const taskFormSchema = z.object({
   status: z.enum(["todo", "in-progress", "done", "blocked"]),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.date().optional(),
-  assigneeId: z.string().optional(),
-  dependencies: z.array(z.string()).optional(), // Array of task IDs
+  assigneeId: z.string().optional().or(z.literal("")), // Allow empty string for "Unassigned"
+  dependencies: z.array(z.string()).optional(),
   progress: z.number().min(0).max(100).optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskFormSchema>;
 
 interface TaskFormProps {
-  task?: Task; // For editing
+  task?: Task; 
   onSubmitSuccess?: () => void;
 }
 
@@ -54,6 +55,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
     ? {
         ...task,
         dueDate: task.dueDate ? parseISO(task.dueDate) : undefined,
+        assigneeId: task.assigneeId || "", // Ensure empty string if undefined for Select
       }
     : {
         title: "",
@@ -62,6 +64,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
         priority: "medium",
         dependencies: [],
         progress: 0,
+        assigneeId: "",
       };
 
   const form = useForm<TaskFormValues>({
@@ -70,27 +73,44 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
   });
 
   function onSubmit(data: TaskFormValues) {
-    const taskData: Partial<Task> = {
-      ...data,
+    const calculatedProgress = data.status === 'done' ? 100 : (data.progress ?? 0);
+    const taskMutationData: Omit<Task, "id" | "createdAt" | "updatedAt"> & { id?: string } = {
+      title: data.title,
+      description: data.description,
+      status: data.status,
+      priority: data.priority,
       dueDate: data.dueDate ? format(data.dueDate, "yyyy-MM-dd") : undefined,
-      progress: data.progress ?? (data.status === 'done' ? 100 : 0),
+      assigneeId: data.assigneeId === "" ? undefined : data.assigneeId, // Convert empty string to undefined
+      dependencies: data.dependencies,
+      progress: calculatedProgress,
     };
     
-    if (task) { // Editing existing task
-      console.log("Updating task:", { ...task, ...taskData, updatedAt: new Date().toISOString() });
-       toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
+    if (task && task.id) { // Editing existing task
+      const taskIndex = mockTasks.findIndex(t => t.id === task.id);
+      if (taskIndex !== -1) {
+        mockTasks[taskIndex] = { 
+            ...mockTasks[taskIndex], 
+            ...taskMutationData, 
+            updatedAt: new Date().toISOString() 
+        };
+      }
+      toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
     } else { // Creating new task
-      console.log("Creating new task:", { ...taskData, id: `task-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      const newTask: Task = {
+        id: `task-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...taskMutationData,
+      };
+      mockTasks.push(newTask);
       toast({ title: "Task Created", description: `New task "${data.title}" has been created.` });
     }
-    
-    // In a real app, you'd call an API here.
-    // For now, we just log and show a toast.
     
     if (onSubmitSuccess) {
       onSubmitSuccess();
     } else {
-      router.push("/tasks"); // Redirect to task list after submit
+      router.push("/tasks");
+      // router.refresh(); // Consider if needed, might be handled by refreshKey on TasksPage
     }
   }
 
@@ -208,7 +228,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
-                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} // Disable past dates
+                      disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))} 
                       initialFocus
                     />
                   </PopoverContent>
@@ -224,7 +244,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Assignee</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select assignee (optional)" />
@@ -288,6 +308,9 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
                     }}
                   />
                 ))}
+                {availableDependencies.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No other tasks available to set as dependencies.</p>
+                )}
               </ScrollArea>
               <FormMessage />
             </FormItem>
@@ -297,15 +320,25 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
         <FormField
           control={form.control}
           name="progress"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Progress: {field.value}%</FormLabel>
-              <FormControl>
-                 <Input type="range" min="0" max="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            // Ensure value is a number for the input
+            const numericValue = typeof field.value === 'number' ? field.value : 0;
+            return (
+                <FormItem>
+                <FormLabel>Progress: {numericValue}%</FormLabel>
+                <FormControl>
+                    <Input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={numericValue}
+                    onChange={e => field.onChange(parseInt(e.target.value, 10))} 
+                    />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            );
+        }}
         />
 
         <div className="flex justify-end gap-2">
