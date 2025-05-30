@@ -20,6 +20,7 @@ const SuggestDueDateInputSchema = z.object({
     .array(z.object({name: z.string(), currentWorkload: z.number().min(0).max(100)}))
     .describe('List of team members and their current workload as a percentage.'),
   priority: z.enum(['high', 'medium', 'low']).describe('Priority of the task.'),
+  currentDate: z.string().describe('The current date in YYYY-MM-DD format.'),
 });
 
 export type SuggestDueDateInput = z.infer<typeof SuggestDueDateInputSchema>;
@@ -54,7 +55,7 @@ const suggestDueDatePrompt = ai.definePrompt({
 
   Suggest a due date that avoids overburdening team members while ensuring timely task completion.
   Provide a clear reasoning for your suggestion, and the workload allocation for each team member after assigning the task.
-  The current date is {{now format='YYYY-MM-DD'}}.
+  The current date is {{{currentDate}}}.
   Output the suggested due date in ISO format (YYYY-MM-DD).
   Ensure that all projected workload are between 0 and 100.
   Always respond in JSON format.
@@ -90,10 +91,9 @@ const suggestDueDateFlow = ai.defineFlow(
   async input => {
     const {output} = await suggestDueDatePrompt(input);
     if (!output) {
-      console.error("AI response did not conform to the output schema for suggestDueDatePrompt. Input:", input);
-      throw new Error("AI response did not conform to the expected output schema. The response might be empty, malformed, or blocked by content filters.");
+      console.error("AI response did not conform to the output schema for suggestDueDatePrompt. Input:", input, "Raw AI response object:", await suggestDueDatePrompt(input));
+      throw new Error("AI response did not conform to the expected output schema. The response might be empty, malformed, or blocked by content filters. Check the server console for more details.");
     }
     return output;
   }
 );
-

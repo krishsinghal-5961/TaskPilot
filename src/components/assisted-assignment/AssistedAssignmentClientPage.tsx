@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,7 +48,7 @@ export function AssistedAssignmentClientPage() {
     defaultValues: {
       taskDescription: "",
       priority: "medium",
-      teamMembers: mockUsers.slice(0,2).map(u => ({ name: u.name, currentWorkload: u.currentWorkload || 0 })), // Pre-fill with some mock users
+      teamMembers: mockUsers.filter(u => u.role === 'employee').slice(0,2).map(u => ({ name: u.name, currentWorkload: u.currentWorkload || 0 })), // Pre-fill with some mock employee users
     },
   });
 
@@ -60,7 +61,12 @@ export function AssistedAssignmentClientPage() {
     setIsLoading(true);
     setAiResult(null);
     try {
-      const result = await suggestDueDate(data as SuggestDueDateInput); // Cast as AI flow input type
+      const currentDate = new Date().toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      const inputForAI: SuggestDueDateInput = {
+        ...data,
+        currentDate,
+      };
+      const result = await suggestDueDate(inputForAI);
       setAiResult(result);
       toast({
         title: "Suggestion Received",
@@ -68,9 +74,13 @@ export function AssistedAssignmentClientPage() {
       });
     } catch (error) {
       console.error("Error calling AI flow:", error);
+      let errorMessage = "Failed to get suggestion from AI. Please try again.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast({
         title: "Error",
-        description: "Failed to get suggestion from AI. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -127,7 +137,7 @@ export function AssistedAssignmentClientPage() {
 
               <div>
                 <FormLabel>Team Members & Workload</FormLabel>
-                <FormDescription>Add team members and their current workload (0-100%).</FormDescription>
+                <FormDescription>Add team members and their current workload (0-100%). Only employees are listed for auto-population.</FormDescription>
                 {fields.map((field, index) => (
                   <div key={field.id} className="flex items-end gap-2 mt-2 p-3 border rounded-md">
                     <FormField
@@ -198,7 +208,7 @@ export function AssistedAssignmentClientPage() {
             </div>
           )}
           {!isLoading && !aiResult && (
-            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion.</p>
+            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion. Ensure your GOOGLE_API_KEY is set in .env if you're running locally.</p>
           )}
           {aiResult && (
             <div className="space-y-4">
