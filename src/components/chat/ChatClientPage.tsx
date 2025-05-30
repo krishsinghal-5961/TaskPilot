@@ -23,6 +23,11 @@ function isGroupChat(conversation: Conversation): conversation is GroupChat {
   return 'memberIds' in conversation;
 }
 
+const getConversationId = (conversation: Conversation | null): string | undefined => {
+  if (!conversation) return undefined;
+  return isGroupChat(conversation) ? conversation.id : conversation.uid;
+};
+
 export function ChatClientPage() {
   const { currentUser } = useAuth();
   const [allConversations, setAllConversations] = useState<Conversation[]>([]);
@@ -39,20 +44,19 @@ export function ChatClientPage() {
       setAllConversations([...usersForChat, ...groupsForChat].sort((a, b) => a.name.localeCompare(b.name)));
 
       if (!selectedConversation && allConversations.length > 0) {
-         // Try to select the first user by default if nothing else is selected
         const firstUser = usersForChat[0];
         if (firstUser) setSelectedConversation(firstUser);
       }
     }
-  }, [currentUser, refreshKey, selectedConversation]); // Added selectedConversation dependency
+  }, [currentUser, refreshKey, selectedConversation, allConversations.length]); // Added allConversations.length to re-evaluate default selection
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, selectedConversation]);
 
   const handleGroupCreated = (newGroup: GroupChat) => {
-    setRefreshKey(prev => prev + 1); // Trigger conversation list refresh
-    setSelectedConversation(newGroup); // Select the newly created group
+    setRefreshKey(prev => prev + 1); 
+    setSelectedConversation(newGroup); 
   };
 
   const handleSendMessage = () => {
@@ -72,9 +76,8 @@ export function ChatClientPage() {
       messageToSend.receiverId = selectedConversation.uid;
     }
 
-    // In a real app, this would be sent to a backend. For mock, add to global array.
     mockChatMessages.push(messageToSend);
-    setMessages([...mockChatMessages]); // Update local messages state from global
+    setMessages([...mockChatMessages]); 
     setNewMessage("");
   };
 
@@ -83,7 +86,7 @@ export function ChatClientPage() {
 
     if (isGroupChat(selectedConversation)) {
       return msg.groupId === selectedConversation.id;
-    } else { // It's a UserProfile
+    } else { 
       return (
         (msg.senderId === currentUser.uid && msg.receiverId === selectedConversation.uid) ||
         (msg.senderId === selectedConversation.uid && msg.receiverId === currentUser.uid)
@@ -107,7 +110,6 @@ export function ChatClientPage() {
 
   return (
     <div className="flex flex-1 border rounded-lg shadow-md overflow-hidden">
-      {/* User/Group List Sidebar */}
       <aside className="w-1/3 lg:w-1/4 border-r bg-muted/20 flex flex-col">
         <div className="p-3 border-b flex items-center justify-between">
           <h3 className="text-lg font-semibold">Contacts</h3>
@@ -120,11 +122,11 @@ export function ChatClientPage() {
         <ScrollArea className="flex-1">
           {allConversations.map(conv => (
             <Button
-              key={conv.id}
+              key={getConversationId(conv)}
               variant="ghost"
               className={cn(
-                "w-full justify-start p-3 rounded-none hover:bg-muted h-auto", // Ensure button can grow
-                selectedConversation?.id === conv.id && "bg-muted font-semibold"
+                "w-full justify-start p-3 rounded-none hover:bg-muted h-auto",
+                getConversationId(selectedConversation) === getConversationId(conv) && "bg-muted font-semibold"
               )}
               onClick={() => setSelectedConversation(conv)}
             >
@@ -143,7 +145,6 @@ export function ChatClientPage() {
         </ScrollArea>
       </aside>
 
-      {/* Chat Area */}
       <main className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
