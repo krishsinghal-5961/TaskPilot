@@ -3,28 +3,96 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { mockUsers } from "@/lib/mock-data";
+import { mockUsers as initialMockUsers } from "@/lib/mock-data"; // Renamed to avoid conflict
+import type { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useToast } from "@/hooks/use-toast";
+
+const addMemberSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  email: z.string().email({ message: "Please enter a valid email address." }),
+});
+type AddMemberFormValues = z.infer<typeof addMemberSchema>;
 
 export default function TeamManagementPage() {
-  const { currentUser, isLoading } = useAuth();
+  const { currentUser, isLoading: authIsLoading } = useAuth(); // Renamed isLoading to authIsLoading
   const router = useRouter();
+  const { toast } = useToast();
+
+  const [teamMembers, setTeamMembers] = useState<User[]>(initialMockUsers.filter(user => user.role === 'employee'));
+  const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<AddMemberFormValues>({
+    resolver: zodResolver(addMemberSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+    },
+  });
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!authIsLoading) {
       if (!currentUser || currentUser.role !== "manager") {
-        router.replace("/login"); // Or an unauthorized page
+        router.replace("/login");
       }
     }
-  }, [currentUser, isLoading, router]);
+  }, [currentUser, authIsLoading, router]);
 
-  if (isLoading || !currentUser || currentUser.role !== "manager") {
+  const handleAddMemberSubmit = async (data: AddMemberFormValues) => {
+    setIsSubmitting(true);
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      name: data.name,
+      email: data.email,
+      avatarUrl: `https://placehold.co/100x100.png?text=${getInitials(data.name)}`,
+      currentWorkload: 0,
+      role: "employee",
+    };
+
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    setTeamMembers(prev => [...prev, newUser]);
+    initialMockUsers.push(newUser); // Add to the global mock data (for demo purposes)
+
+    toast({
+      title: "Member Added",
+      description: `${newUser.name} has been added to the team.`,
+    });
+    form.reset();
+    setIsAddMemberDialogOpen(false);
+    setIsSubmitting(false);
+  };
+
+  if (authIsLoading || !currentUser || currentUser.role !== "manager") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -33,17 +101,66 @@ export default function TeamManagementPage() {
     );
   }
 
-  const teamMembers = mockUsers.filter(user => user.role === 'employee');
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Manage Team"
         description="View and manage your team members."
         actions={
-          <Button disabled> {/* Placeholder for future "Add Member" functionality */}
-            <Users className="mr-2 h-4 w-4" /> Add New Member
-          </Button>
+          <Dialog open={isAddMemberDialogOpen} onOpenChange={setIsAddMemberDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" /> Add New Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Team Member</DialogTitle>
+                <DialogDescription>
+                  Enter the details for the new team member. They will be added with an 'employee' role.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleAddMemberSubmit)} className="space-y-4 py-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., John Doe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="e.g., john.doe@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsAddMemberDialogOpen(false)} disabled={isSubmitting}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Add Member
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         }
       />
       <Card className="shadow-md">
