@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Edit, Trash2, Eye, PlayCircle, PauseCircle } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Eye, PlayCircle, PauseCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
