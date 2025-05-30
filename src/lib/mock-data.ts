@@ -1,23 +1,24 @@
 
 import type { Notification, UserProfile, Task } from "@/types";
-import { formatISO, subDays, addDays } from "date-fns"; // Added addDays for potential future use
+import { formatISO, subDays, addDays } from "date-fns";
 import { getInitials } from "./utils";
 
 const today = new Date();
+const managerId = "priya-mgr";
 
 // Sample User Data
 export const mockUsers: UserProfile[] = [
   {
-    uid: "priya-mgr", // Manager
+    uid: managerId,
     name: "Priya Sharma",
     email: "priya-mgr@gmail.com",
     role: "manager",
     designation: "Engineering Manager",
     avatarUrl: `https://placehold.co/100x100.png?text=${getInitials("Priya Sharma")}`,
-    currentWorkload: 30,
+    currentWorkload: 20,
   },
   {
-    uid: "rohan-dev", // Employee
+    uid: "rohan-dev",
     name: "Rohan Mehra",
     email: "rohan-dev@gmail.com",
     role: "employee",
@@ -26,7 +27,7 @@ export const mockUsers: UserProfile[] = [
     currentWorkload: 75,
   },
   {
-    uid: "aisha-dev", // Employee
+    uid: "aisha-dev",
     name: "Aisha Khan",
     email: "aisha-dev@gmail.com",
     role: "employee",
@@ -35,7 +36,7 @@ export const mockUsers: UserProfile[] = [
     currentWorkload: 50,
   },
   {
-    uid: "vikram-qa", // Employee
+    uid: "vikram-qa",
     name: "Vikram Singh",
     email: "vikram-qa@gmail.com",
     role: "employee",
@@ -44,13 +45,13 @@ export const mockUsers: UserProfile[] = [
     currentWorkload: 60,
   },
   {
-    uid: "krish-pe", // New Employee
+    uid: "krish-pe",
     name: "Krish Singhal",
     email: "krish-pe@gmail.com",
     role: "employee",
     designation: "Prompt Engineer",
     avatarUrl: `https://placehold.co/100x100.png?text=${getInitials("Krish Singhal")}`,
-    currentWorkload: 0,
+    currentWorkload: 10,
   },
 ];
 
@@ -63,12 +64,12 @@ export const mockTasks: Task[] = [
     status: "in-progress",
     priority: "high",
     dueDate: formatISO(addDays(today, 7)),
-    assigneeId: "rohan-dev", 
+    assigneeId: "rohan-dev",
     progress: 60,
     dependencies: [],
     createdAt: formatISO(subDays(today, 10)),
     updatedAt: formatISO(subDays(today, 1)),
-    userId: "priya-mgr",
+    userId: managerId,
   },
   {
     id: "task-2",
@@ -77,12 +78,12 @@ export const mockTasks: Task[] = [
     status: "todo",
     priority: "high",
     dueDate: formatISO(addDays(today, 14)),
-    assigneeId: "aisha-dev", 
+    assigneeId: "aisha-dev",
     progress: 10,
     dependencies: [],
     createdAt: formatISO(subDays(today, 8)),
     updatedAt: formatISO(subDays(today, 2)),
-    userId: "priya-mgr",
+    userId: managerId,
   },
   {
     id: "task-3",
@@ -93,10 +94,10 @@ export const mockTasks: Task[] = [
     dueDate: formatISO(addDays(today, 21)),
     assigneeId: "rohan-dev",
     progress: 0,
-    dependencies: ["task-2"], 
+    dependencies: ["task-2"],
     createdAt: formatISO(subDays(today, 5)),
     updatedAt: formatISO(subDays(today, 5)),
-    userId: "priya-mgr",
+    userId: managerId,
   },
   {
     id: "task-4",
@@ -104,13 +105,13 @@ export const mockTasks: Task[] = [
     description: "Document all available API endpoints, request/response formats, and authentication methods.",
     status: "todo",
     priority: "low",
-    dueDate: null, 
-    assigneeId: null, 
+    dueDate: null,
+    assigneeId: null,
     progress: 0,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),
     updatedAt: formatISO(subDays(today, 3)),
-    userId: "priya-mgr",
+    userId: managerId,
   },
   {
     id: "task-5",
@@ -118,13 +119,55 @@ export const mockTasks: Task[] = [
     description: "Conduct load testing and performance analysis to identify and address bottlenecks.",
     status: "done",
     priority: "medium",
-    dueDate: formatISO(subDays(today, 2)), 
-    assigneeId: "vikram-qa", 
+    dueDate: formatISO(subDays(today, 2)),
+    assigneeId: "vikram-qa",
     progress: 100,
     dependencies: [],
     createdAt: formatISO(subDays(today, 15)),
     updatedAt: formatISO(subDays(today, 1)),
-    userId: "priya-mgr",
+    userId: managerId,
+  },
+  {
+    id: "task-6",
+    title: "Write Project Proposal for New Feature",
+    description: "Outline the scope, benefits, and resources required for the upcoming AI-driven reporting feature.",
+    status: "blocked",
+    priority: "high",
+    dueDate: formatISO(addDays(today, 5)),
+    assigneeId: "krish-pe",
+    progress: 20,
+    dependencies: ["task-1"], // Blocked because homepage design isn't final
+    createdAt: formatISO(subDays(today, 4)),
+    updatedAt: formatISO(subDays(today, 1)),
+    userId: managerId,
+  },
+  {
+    id: "task-7",
+    title: "User Acceptance Testing (UAT) for v1.0",
+    description: "Coordinate and execute UAT with stakeholders for the first version of the application.",
+    status: "todo",
+    priority: "high",
+    dueDate: formatISO(addDays(today, 10)),
+    assigneeId: "vikram-qa",
+    progress: 0,
+    dependencies: ["task-1", "task-2"],
+    createdAt: formatISO(subDays(today, 2)),
+    updatedAt: formatISO(subDays(today, 2)),
+    userId: managerId,
+  },
+  {
+    id: "task-8",
+    title: "Prepare Marketing Materials",
+    description: "Create brochures and online content for the upcoming product launch.",
+    status: "in-progress",
+    priority: "medium",
+    dueDate: formatISO(addDays(today, 30)),
+    assigneeId: "aisha-dev",
+    progress: 45,
+    dependencies: [],
+    createdAt: formatISO(subDays(today, 6)),
+    updatedAt: formatISO(subDays(today, 1)),
+    userId: managerId,
   },
 ];
 
@@ -140,34 +183,58 @@ export const mockNotifications: Notification[] = [
   },
   {
     id: "notif-2",
-    userId: "priya-mgr", 
-    message: "Aisha Khan updated progress on 'Develop Authentication System'.",
-    timestamp: formatISO(subDays(today, 0)),
+    userId: managerId,
+    message: "Aisha Khan updated progress on 'Develop Authentication System' to 10%.",
+    timestamp: formatISO(subDays(today, 0)), // Today
     read: false,
     link: "/tasks/task-2",
   },
   {
     id: "notif-3",
     userId: "vikram-qa",
-    message: "New task 'Conduct User Acceptance Testing' assigned to you.",
+    message: "New task 'User Acceptance Testing (UAT) for v1.0' assigned to you.",
     timestamp: formatISO(subDays(today, 2)),
     read: true,
-    link: "/tasks/new-task-id-placeholder", 
+    link: "/tasks/task-7",
   },
-   {
+  {
     id: 'notif-4',
-    userId: 'priya-mgr',
-    message: "Rohan Mehra completed task 'Design Homepage UI'",
-    timestamp: formatISO(today),
-    read: false,
-    link: '/tasks/task-1',
+    userId: managerId,
+    message: "Vikram Singh completed task 'Test Application Performance'.",
+    timestamp: formatISO(subDays(today, 1)),
+    read: true,
+    link: '/tasks/task-5',
   },
   {
     id: 'notif-5',
-    userId: 'rohan-dev',
-    message: "Task 'Develop Authentication System' (dependency for 'Setup CI/CD Pipeline') has been completed.",
+    userId: 'rohan-dev', // Rohan depends on Task 2 (Aisha)
+    message: "Dependency 'Develop Authentication System' for your task 'Setup CI/CD Pipeline' has been updated (Progress: 10%).",
     timestamp: formatISO(today),
     read: false,
     link: '/tasks/task-3',
   },
+  {
+    id: 'notif-6',
+    userId: 'krish-pe',
+    message: "Your task 'Write Project Proposal for New Feature' is currently blocked.",
+    timestamp: formatISO(subDays(today, 1)),
+    read: false,
+    link: '/tasks/task-6',
+  },
+  {
+    id: 'notif-7',
+    userId: managerId,
+    message: "Task 'Write API Documentation' has no assignee yet.",
+    timestamp: formatISO(subDays(today, 3)),
+    read: false,
+    link: '/tasks/task-4',
+  },
+  {
+    id: 'notif-8',
+    userId: 'aisha-dev',
+    message: "Reminder: Task 'Develop Authentication System' due date is approaching.",
+    timestamp: formatISO(addDays(today, 12)), // A bit in the future
+    read: false,
+    link: '/tasks/task-2',
+  }
 ];
