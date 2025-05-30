@@ -23,11 +23,15 @@ export default function TaskPage({ params }: TaskPageProps) {
   const router = useRouter();
   const taskId = params.id;
 
-  const { data: task, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
+  const { data: taskData, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
     queryKey: ['task', taskId],
     queryFn: () => getTaskById(taskId),
-    enabled: !!taskId,
+    enabled: !!taskId && !!currentUser, // Ensure currentUser is available before fetching
   });
+
+  // Ensure taskData is plain if passing to client component
+  // This helps prevent errors if taskData contains non-serializable types like Date objects
+  const plainTaskData = taskData ? JSON.parse(JSON.stringify(taskData)) : null;
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -36,13 +40,12 @@ export default function TaskPage({ params }: TaskPageProps) {
   }, [currentUser, authLoading, router]);
 
   useEffect(() => {
-    if (!authLoading && !taskLoading && currentUser && task) {
-      if (task && currentUser.role === 'employee' && task.assigneeId !== currentUser.uid) {
-        // Employee trying to access a task not assigned to them
+    if (!authLoading && !taskLoading && currentUser && plainTaskData) {
+      if (currentUser.role === 'employee' && plainTaskData.assigneeId !== currentUser.uid) {
         router.replace("/tasks"); 
       }
     }
-  }, [currentUser, authLoading, task, taskLoading, router]);
+  }, [currentUser, authLoading, plainTaskData, taskLoading, router]);
 
 
   if (authLoading || taskLoading || currentUser === undefined) {
@@ -71,7 +74,7 @@ export default function TaskPage({ params }: TaskPageProps) {
     );
   }
 
-  if (task === null) { 
+  if (plainTaskData === null && !taskLoading) { // Check plainTaskData after potential loading/error
      return (
       <div className="space-y-6">
         <PageHeader
@@ -88,8 +91,8 @@ export default function TaskPage({ params }: TaskPageProps) {
     );
   }
   
-  // Final access check
-  if (task && currentUser && currentUser.role === 'employee' && task.assigneeId !== currentUser.uid) {
+  // Final access check using plainTaskData
+  if (plainTaskData && currentUser && currentUser.role === 'employee' && plainTaskData.assigneeId !== currentUser.uid) {
       return (
         <div className="space-y-6">
           <PageHeader
@@ -105,7 +108,7 @@ export default function TaskPage({ params }: TaskPageProps) {
       );
   }
   
-  const taskTitle = task ? task.title : "Task Details";
+  const taskTitle = plainTaskData ? plainTaskData.title : "Task Details";
   
   return (
     <div className="space-y-6">
@@ -113,7 +116,8 @@ export default function TaskPage({ params }: TaskPageProps) {
         title={taskTitle}
         description={`Viewing details for task ID: ${params.id}`}
       />
-      <TaskDetailView taskId={params.id} initialTask={task} />
+      {/* Pass plainTaskData (which could be null if task wasn't found) */}
+      <TaskDetailView taskId={params.id} initialTask={plainTaskData} />
     </div>
   );
 }

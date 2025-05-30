@@ -25,11 +25,14 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
   const taskId = params.id;
   const { toast } = useToast();
 
-  const { data: task, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
+  const { data: taskData, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
     queryKey: ['task', taskId],
     queryFn: () => getTaskById(taskId),
-    enabled: !!taskId,
+    enabled: !!taskId && !!currentUser,
   });
+
+  // Ensure taskData is plain if passing to client component
+  const plainTaskData = taskData ? JSON.parse(JSON.stringify(taskData)) : null;
 
   useEffect(() => {
     if (!authLoading && !taskLoading) {
@@ -37,18 +40,17 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
         router.replace("/login");
         return;
       }
-      // If task is loaded, perform role check
-      if (task) { // task could be null if not found
-          if (currentUser.role !== 'manager' && task?.assigneeId !== currentUser.uid) {
+      if (plainTaskData) { 
+          if (currentUser.role !== 'manager' && plainTaskData.assigneeId !== currentUser.uid) {
             toast({ variant: "destructive", title: "Access Denied", description: "You do not have permission to edit this task." });
             router.replace("/tasks"); 
           }
-      } else if (task === null && !taskError) { // Task specifically not found and no other loading error
+      } else if (plainTaskData === null && !taskError && !taskLoading) { 
          toast({ variant: "destructive", title: "Task Not Found", description: "The task you are trying to edit does not exist." });
          router.replace("/tasks");
       }
     }
-  }, [currentUser, authLoading, task, taskLoading, taskError, router, toast]);
+  }, [currentUser, authLoading, plainTaskData, taskLoading, taskError, router, toast]);
 
 
   if (authLoading || taskLoading || !currentUser) {
@@ -74,7 +76,7 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
     );
   }
   
-  if (!task) { // Handles case where task is null after loading (not found)
+  if (!plainTaskData && !taskLoading) { 
     return (
       <div className="space-y-6">
         <PageHeader title="Edit Task" description="Task not found." />
@@ -88,8 +90,18 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
     );
   }
   
+  // This check should catch cases where plainTaskData becomes null due to error or not found
+  if (!plainTaskData) {
+     return ( // Or some other loading/error state if taskLoading is still true but plainTaskData is null
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Preparing task data...</p>
+      </div>
+    );
+  }
+
   // Final check after loading to ensure unauthorized users who might have briefly seen content are redirected.
-  if (currentUser.role !== 'manager' && task?.assigneeId !== currentUser.uid) {
+  if (currentUser.role !== 'manager' && plainTaskData.assigneeId !== currentUser.uid) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-4">
         <PageHeader title="Access Denied" description="You are not authorized to edit this task." />
@@ -101,7 +113,7 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Edit Task: ${task.title}`}
+        title={`Edit Task: ${plainTaskData.title}`}
         description="Update the details for this task."
       />
       <Card className="shadow-md">
@@ -109,7 +121,7 @@ export default function EditTaskPage({ params }: EditTaskPageProps) {
           <CardTitle>Task Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <TaskForm task={task} />
+          <TaskForm task={plainTaskData} />
         </CardContent>
       </Card>
     </div>

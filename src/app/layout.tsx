@@ -1,5 +1,6 @@
 
-import type { Metadata } from 'next';
+"use client"; // Add this directive
+
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
@@ -18,10 +19,8 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'TaskPilot - Efficient Task Management',
-  description: 'Manage your tasks efficiently with TaskPilot, featuring AI-assisted assignment and progress tracking.',
-};
+// Removed metadata export as it's not allowed in Client Components.
+// Consider using next/head for basic metadata or other patterns.
 
 // Create a client
 const queryClient = new QueryClient();
