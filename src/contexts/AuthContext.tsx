@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (userId: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
+  updateCurrentUserDetails: (updatedDetails: Partial<User>) => Promise<boolean>; // Added this
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,8 +72,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const updateCurrentUserDetails = useCallback(async (updatedDetails: Partial<User>): Promise<boolean> => {
+    if (!currentUser) return false;
+    // setIsLoading(true); // Can enable if async operations are involved
+
+    const updatedUser = { ...currentUser, ...updatedDetails };
+    setCurrentUser(updatedUser);
+
+    // Update mockUsers array (simulating backend update)
+    const userIndex = mockUsers.findIndex(u => u.id === currentUser.id);
+    if (userIndex !== -1) {
+      mockUsers[userIndex] = { ...mockUsers[userIndex], ...updatedDetails };
+    }
+    
+    // No need to update localStorage unless the persisted 'taskpilot-currentUser' (which is userId) changes.
+    // If we stored the whole user object in localStorage, we would update it here.
+
+    // setIsLoading(false);
+    return true;
+  }, [currentUser, setCurrentUser]);
+
+
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ currentUser, login, logout, isLoading, updateCurrentUserDetails }}>
       {children}
     </AuthContext.Provider>
   );

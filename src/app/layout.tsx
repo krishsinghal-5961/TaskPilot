@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext'; // Added ThemeProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -28,11 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`} suppressHydrationWarning={true}>
-        <AuthProvider>
-          <AppShell>
-            {children}
-          </AppShell>
-        </AuthProvider>
+        <ThemeProvider> {/* Wrapped AuthProvider with ThemeProvider */}
+          <AuthProvider>
+            <AppShell>
+              {children}
+            </AppShell>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
