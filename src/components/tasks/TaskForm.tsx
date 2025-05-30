@@ -29,13 +29,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+const UNASSIGNED_VALUE = "_UNASSIGNED_";
+
 const taskFormSchema = z.object({
   title: z.string().min(3, { message: "Title must be at least 3 characters." }),
   description: z.string().optional(),
   status: z.enum(["todo", "in-progress", "done", "blocked"]),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.date().optional(),
-  assigneeId: z.string().optional().or(z.literal("")), // Allow empty string for "Unassigned"
+  assigneeId: z.string(), // Will be user ID or UNASSIGNED_VALUE
   dependencies: z.array(z.string()).optional(),
   progress: z.number().min(0).max(100).optional(),
 });
@@ -51,21 +53,16 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
   const router = useRouter();
   const { toast } = useToast();
 
-  const defaultValues: Partial<TaskFormValues> = task
-    ? {
-        ...task,
-        dueDate: task.dueDate ? parseISO(task.dueDate) : undefined,
-        assigneeId: task.assigneeId || "", // Ensure empty string if undefined for Select
-      }
-    : {
-        title: "",
-        description: "",
-        status: "todo",
-        priority: "medium",
-        dependencies: [],
-        progress: 0,
-        assigneeId: "",
-      };
+  const defaultValues: TaskFormValues = {
+    title: task?.title || "",
+    description: task?.description || "",
+    status: task?.status || "todo",
+    priority: task?.priority || "medium",
+    dueDate: task?.dueDate ? parseISO(task.dueDate) : undefined,
+    assigneeId: task?.assigneeId || UNASSIGNED_VALUE,
+    dependencies: task?.dependencies || [],
+    progress: task?.progress || 0,
+  };
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -80,7 +77,7 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
       status: data.status,
       priority: data.priority,
       dueDate: data.dueDate ? format(data.dueDate, "yyyy-MM-dd") : undefined,
-      assigneeId: data.assigneeId === "" ? undefined : data.assigneeId, // Convert empty string to undefined
+      assigneeId: data.assigneeId === UNASSIGNED_VALUE ? undefined : data.assigneeId,
       dependencies: data.dependencies,
       progress: calculatedProgress,
     };
@@ -101,6 +98,8 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         ...taskMutationData,
+        // Ensure progress is part of the new task object if not set by status
+        progress: taskMutationData.progress !== undefined ? taskMutationData.progress : (taskMutationData.status === 'done' ? 100 : 0),
       };
       mockTasks.push(newTask);
       toast({ title: "Task Created", description: `New task "${data.title}" has been created.` });
@@ -244,14 +243,14 @@ export function TaskForm({ task, onSubmitSuccess }: TaskFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Assignee</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select assignee (optional)" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value={UNASSIGNED_VALUE}>Unassigned</SelectItem>
                     {mockUsers.map(user => (
                       <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
                     ))}
