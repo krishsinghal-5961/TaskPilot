@@ -1,6 +1,7 @@
+
 "use client";
 
-import { MoreHorizontal, Edit, Trash2, Eye, PlayCircle, PauseCircle, CheckCircle2 } from "lucide-react";
+import { MoreHorizontal, Edit, Trash2, Eye, PlayCircle, PauseCircle, CheckCircle2Icon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +17,10 @@ interface TaskActionsProps {
   task: Task;
   onDelete: (taskId: string) => void;
   onUpdateStatus: (taskId: string, status: Task["status"]) => void;
+  canModify?: boolean; // Added to control edit/delete/status update actions
 }
 
-export function TaskActions({ task, onDelete, onUpdateStatus }: TaskActionsProps) {
+export function TaskActions({ task, onDelete, onUpdateStatus, canModify = false }: TaskActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -34,36 +36,40 @@ export function TaskActions({ task, onDelete, onUpdateStatus }: TaskActionsProps
             View Details
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/tasks/${task.id}/edit`}> {/* Assuming an edit page */}
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Task
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {task.status !== "in-progress" && task.status !== "done" && (
+        {canModify && (
+          <DropdownMenuItem asChild>
+            <Link href={`/tasks/${task.id}/edit`}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Task
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {canModify && <DropdownMenuSeparator />}
+        {canModify && task.status !== "in-progress" && task.status !== "done" && (
           <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "in-progress")}>
             <PlayCircle className="mr-2 h-4 w-4" />
             Start Task
           </DropdownMenuItem>
         )}
-        {task.status === "in-progress" && (
+        {canModify && task.status === "in-progress" && (
           <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "todo")}> {/* Or 'paused' if you add that status */}
             <PauseCircle className="mr-2 h-4 w-4" />
             Pause Task
           </DropdownMenuItem>
         )}
-         {task.status !== "done" && (
+         {canModify && task.status !== "done" && (
           <DropdownMenuItem onClick={() => onUpdateStatus(task.id, "done")}>
-            <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+            <CheckCircle2Icon className="mr-2 h-4 w-4 text-green-500" />
             Mark as Done
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onDelete(task.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete Task
-        </DropdownMenuItem>
+        {canModify && <DropdownMenuSeparator />}
+        {canModify && (
+          <DropdownMenuItem onClick={() => onDelete(task.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Task
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -1,13 +1,14 @@
-import type { Task, User, Notification, TaskStatus, TaskPriority } from "@/types";
+
+import type { Task, User, Notification, TaskStatus, TaskPriority, UserRole } from "@/types";
 import { addDays, subDays, formatISO } from "date-fns";
 
 const today = new Date();
 
 export const mockUsers: User[] = [
-  { id: "user-1", name: "Alice Wonderland", email: "alice@example.com", avatarUrl: "https://placehold.co/100x100.png?text=AW", currentWorkload: 30 },
-  { id: "user-2", name: "Bob The Builder", email: "bob@example.com", avatarUrl: "https://placehold.co/100x100.png?text=BB", currentWorkload: 70 },
-  { id: "user-3", name: "Charlie Chaplin", email: "charlie@example.com", avatarUrl: "https://placehold.co/100x100.png?text=CC", currentWorkload: 50 },
-  { id: "user-4", name: "Diana Prince", email: "diana@example.com", avatarUrl: "https://placehold.co/100x100.png?text=DP", currentWorkload: 20 },
+  { id: "user-1", name: "Alice Wonderland", email: "alice@example.com", avatarUrl: "https://placehold.co/100x100.png?text=AW", currentWorkload: 30, role: "manager" },
+  { id: "user-2", name: "Bob The Builder", email: "bob@example.com", avatarUrl: "https://placehold.co/100x100.png?text=BB", currentWorkload: 70, role: "employee" },
+  { id: "user-3", name: "Charlie Chaplin", email: "charlie@example.com", avatarUrl: "https://placehold.co/100x100.png?text=CC", currentWorkload: 50, role: "employee" },
+  { id: "user-4", name: "Diana Prince", email: "diana@example.com", avatarUrl: "https://placehold.co/100x100.png?text=DP", currentWorkload: 20, role: "employee" },
 ];
 
 export const mockTasks: Task[] = [
@@ -18,7 +19,7 @@ export const mockTasks: Task[] = [
     status: "in-progress" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 7)),
-    assigneeId: "user-1",
+    assigneeId: "user-1", // Alice (manager) can also be assigned tasks
     progress: 60,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),

@@ -16,12 +16,15 @@ export interface Task {
   updatedAt: string; // ISO Date string
 }
 
+export type UserRole = "manager" | "employee";
+
 export interface User {
   id: string;
   name: string;
   avatarUrl?: string;
   email: string;
   currentWorkload?: number; // 0-100, for AI assignment
+  role: UserRole;
 }
 
 export interface Notification {

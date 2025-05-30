@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -8,6 +9,9 @@ import {
   Wand2,
   Bell,
   Settings,
+  Users,
+  LogIn,
+  Loader2,
 } from "lucide-react";
 import { AppLogo } from "@/components/layout/AppLogo";
 import {
@@ -21,21 +25,43 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", icon: ListChecks },
-  { href: "/assisted-assignment", label: "Assisted Assignment", icon: Wand2 },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-];
-
-const bottomNavItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { open } = useSidebar(); // Get sidebar state
+  const { open } = useSidebar();
+  const { currentUser, isLoading } = useAuth();
+
+  const commonNavItems = [
+    { href: "/tasks", label: "Tasks", icon: ListChecks, roles: ["manager", "employee"] },
+    { href: "/notifications", label: "Notifications", icon: Bell, roles: ["manager", "employee"] },
+  ];
+
+  const managerNavItems = [
+    { href: "/dashboard/manager", label: "Dashboard", icon: LayoutDashboard, roles: ["manager"] },
+    { href: "/assisted-assignment", label: "Assisted Assignment", icon: Wand2, roles: ["manager"] },
+    { href: "/team", label: "Manage Team", icon: Users, roles: ["manager"] }, // Placeholder for future team management
+  ];
+
+  const employeeNavItems = [
+    { href: "/dashboard/employee", label: "My Dashboard", icon: LayoutDashboard, roles: ["employee"] },
+  ];
+  
+  let navItems = [];
+  if (currentUser) {
+    if (currentUser.role === "manager") {
+      navItems = [...managerNavItems, ...commonNavItems.filter(item => item.roles.includes("manager"))];
+    } else {
+      navItems = [...employeeNavItems, ...commonNavItems.filter(item => item.roles.includes("employee"))];
+    }
+  }
+
+
+  const bottomNavItems = [
+    { href: "/settings", label: "Settings", icon: Settings, roles: ["manager", "employee"] },
+  ];
+  
+  const filteredBottomNavItems = currentUser ? bottomNavItems.filter(item => item.roles.includes(currentUser.role)) : [];
 
   return (
     <Sidebar collapsible="icon">
@@ -45,46 +71,73 @@ export function SidebarNav() {
         </Link>
       </SidebarHeader>
       <SidebarContent className="flex-1 p-2">
-        <SidebarMenu>
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <Link href={item.href} legacyBehavior passHref>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-full">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : currentUser ? (
+          <SidebarMenu>
+            {navItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <Link href={item.href} legacyBehavior passHref>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+                    tooltip={{ children: item.label, className: "capitalize"}}
+                  >
+                    <a>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        ) : (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <Link href="/login" legacyBehavior passHref>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
-                  tooltip={{ children: item.label, className: "capitalize"}}
+                  isActive={pathname === "/login"}
+                  tooltip={{ children: "Login", className: "capitalize"}}
                 >
                   <a>
-                    <item.icon />
-                    <span>{item.label}</span>
+                    <LogIn />
+                    <span>Login</span>
                   </a>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+          </SidebarMenu>
+        )}
       </SidebarContent>
-      <Separator />
-      <SidebarFooter className="p-2">
-        <SidebarMenu>
-          {bottomNavItems.map((item) => (
-             <SidebarMenuItem key={item.href}>
-             <Link href={item.href} legacyBehavior passHref>
-               <SidebarMenuButton
-                 asChild
-                 isActive={pathname === item.href}
-                 tooltip={{ children: item.label, className: "capitalize"}}
-               >
-                 <a>
-                   <item.icon />
-                   <span>{item.label}</span>
-                 </a>
-               </SidebarMenuButton>
-             </Link>
-           </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarFooter>
+      {currentUser && filteredBottomNavItems.length > 0 && (
+        <>
+          <Separator />
+          <SidebarFooter className="p-2">
+            <SidebarMenu>
+              {filteredBottomNavItems.map((item) => (
+                 <SidebarMenuItem key={item.href}>
+                 <Link href={item.href} legacyBehavior passHref>
+                   <SidebarMenuButton
+                     asChild
+                     isActive={pathname === item.href}
+                     tooltip={{ children: item.label, className: "capitalize"}}
+                   >
+                     <a>
+                       <item.icon />
+                       <span>{item.label}</span>
+                     </a>
+                   </SidebarMenuButton>
+                 </Link>
+               </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarFooter>
+        </>
+      )}
     </Sidebar>
   );
 }
