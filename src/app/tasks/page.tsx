@@ -20,18 +20,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TaskFilterControls } from "@/components/tasks/TaskFilterControls";
 import { TaskActions } from "@/components/tasks/TaskActions";
 import { TaskStatusBadge, TaskPriorityBadge } from "@/components/tasks/TaskBadges";
-import { mockTasks, mockUsers } from "@/lib/mock-data";
-import type { Task, TaskStatus, TaskPriority } from "@/types";
+import type { Task, TaskStatus, TaskPriority, UserProfile } from "@/types";
 import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import {
-  notifyManagerOfTaskCompletion,
-  checkAndNotifyForDependentTasks,
-  notifyManagerOfProgressChange
-} from "@/lib/notificationService";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAllTasks, deleteTaskFromFirestore, updateTaskStatusInFirestore } from "@/services/taskService";
+import { getAllUsers } from "@/services/userService"; // To get assignee names
+// import {
+//   notifyManagerOfTaskCompletion,
+//   checkAndNotifyForDependentTasks,
+//   notifyManagerOfProgressChange
+// } from "@/lib/notificationService"; // Notification service needs update for Firestore
 
 type SortConfig = {
   key: keyof Task | "assigneeName" | null;
@@ -42,36 +44,87 @@ export default function TasksPage() {
   const { toast } = useToast();
   const { currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "createdAt", direction: "descending" });
-  const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
       router.replace("/login");
     }
   }, [currentUser, authLoading, router]);
+
+  const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useQuery<Task[]>({
+    queryKey: ['tasks', currentUser?.uid, currentUser?.role],
+    queryFn: () => getAllTasks(currentUser?.uid, currentUser?.role),
+    enabled: !!currentUser, // Only fetch if currentUser is available
+  });
+
+  const { data: users = [], isLoading: usersLoading } = useQuery<UserProfile[]>({
+    queryKey: ['users'],
+    queryFn: getAllUsers,
+    enabled: currentUser?.role === 'manager', // Only managers might need all users for filtering/display
+  });
   
   const handleFilterChange = (newFilters: Record<string, string>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    const taskToDelete = mockTasks.find(t => t.id === taskId);
-    if (!taskToDelete) return;
-
-    if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.id )) {
-       const taskIndex = mockTasks.findIndex(task => task.id === taskId);
-       if (taskIndex > -1) {
-           mockTasks.splice(taskIndex, 1);
-       }
+  const deleteMutation = useMutation({
+    mutationFn: deleteTaskFromFirestore,
+    onSuccess: (data, taskId) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      const taskToDelete = tasks.find(t => t.id === taskId);
+      toast({
+        title: "Task Deleted",
+        description: `Task "${taskToDelete?.title || 'selected task'}" has been deleted.`,
+        variant: "destructive",
+      });
+    },
+    onError: (error) => {
         toast({
-          title: "Task Deleted",
-          description: `Task "${taskToDelete.title}" has been deleted.`,
+          title: "Error Deleting Task",
+          description: error.message,
           variant: "destructive",
         });
-        setRefreshKey(prev => prev + 1);
+    }
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (variables: { taskId: string; status: TaskStatus; progress?: number }) => 
+                 updateTaskStatusInFirestore(variables.taskId, variables.status, variables.progress),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({
+        title: "Task Updated",
+        description: `Task status changed to ${variables.status}.`,
+      });
+      // TODO: Re-integrate notification logic with Firestore
+      // if (variables.status === 'done') {
+      //   const updatedTask = tasks.find(t => t.id === variables.taskId);
+      //   if (updatedTask) {
+      //     // notifyManagerOfTaskCompletion(updatedTask, currentUser?.name);
+      //     // checkAndNotifyForDependentTasks(updatedTask);
+      //   }
+      // }
+    },
+     onError: (error) => {
+        toast({
+          title: "Error Updating Status",
+          description: error.message,
+          variant: "destructive",
+        });
+    }
+  });
+
+  const handleDeleteTask = (taskId: string) => {
+    const taskToDelete = tasks.find(t => t.id === taskId);
+    if (!taskToDelete) return;
+
+    // Permissions check should ideally be backend, but client-side for now
+    if (currentUser?.role === 'manager' || (currentUser?.role === 'employee' && taskToDelete.assigneeId === currentUser.uid )) {
+       deleteMutation.mutate(taskId);
     } else {
         toast({
           title: "Permission Denied",
@@ -82,27 +135,12 @@ export default function TasksPage() {
   };
 
   const handleUpdateStatus = (taskId: string, status: TaskStatus) => {
-    const taskToUpdateIndex = mockTasks.findIndex(t => t.id === taskId);
-    if (taskToUpdateIndex === -1) return;
-    const taskToUpdate = mockTasks[taskToUpdateIndex];
+    const taskToUpdate = tasks.find(t => t.id === taskId);
+    if (!taskToUpdate) return;
 
-    if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
-      const oldStatus = taskToUpdate.status;
-      mockTasks[taskToUpdateIndex] = { ...taskToUpdate, status, updatedAt: new Date().toISOString() };
-      
-      if (status === 'done' && oldStatus !== 'done') {
-        mockTasks[taskToUpdateIndex].progress = 100; // Also set progress to 100
-        notifyManagerOfTaskCompletion(mockTasks[taskToUpdateIndex], currentUser?.name);
-        checkAndNotifyForDependentTasks(mockTasks[taskToUpdateIndex]);
-      }
-       // Consider if other status changes should notify manager about "progress"
-      // For now, specific progress updates and completion are clearer.
-
-      toast({
-        title: "Task Updated",
-        description: `Task status changed to ${status}.`,
-      });
-      setRefreshKey(prev => prev + 1);
+    if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.uid) {
+      const progress = status === 'done' ? 100 : (status === 'in-progress' && taskToUpdate.progress === 0 ? 10 : taskToUpdate.progress);
+      updateStatusMutation.mutate({ taskId, status, progress });
     } else {
        toast({
         title: "Permission Denied",
@@ -111,72 +149,32 @@ export default function TasksPage() {
       });
     }
   };
-
-  const handleUpdateProgress = (taskId: string, progress: number) => {
-    const taskToUpdateIndex = mockTasks.findIndex(t => t.id === taskId);
-    if (taskToUpdateIndex === -1) return;
-    
-    const taskToUpdate = mockTasks[taskToUpdateIndex];
-    const oldProgress = taskToUpdate.progress;
-    const oldStatus = taskToUpdate.status;
-
-    if (currentUser?.role === 'manager' || taskToUpdate.assigneeId === currentUser?.id) {
-      const newStatus = progress === 100 ? 'done' : (progress > 0 && taskToUpdate.status === 'todo' ? 'in-progress' : taskToUpdate.status);
-      mockTasks[taskToUpdateIndex] = { ...taskToUpdate, progress, status: newStatus, updatedAt: new Date().toISOString() };
-      
-      if (progress !== oldProgress) {
-        notifyManagerOfProgressChange(mockTasks[taskToUpdateIndex], currentUser?.name);
-      }
-      if (progress === 100 && oldStatus !== 'done') {
-        notifyManagerOfTaskCompletion(mockTasks[taskToUpdateIndex], currentUser?.name);
-        checkAndNotifyForDependentTasks(mockTasks[taskToUpdateIndex]);
-      }
-      
-      toast({
-        title: "Progress Updated",
-        description: `Task progress set to ${progress}%.`,
-      });
-      setRefreshKey(prev => prev + 1);
-    } else {
-        toast({
-        title: "Permission Denied",
-        description: "You cannot update this task's progress.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getUserById = useCallback((id?: string) => mockUsers.find(user => user.id === id), []);
+  
+  const getUserById = useCallback((assigneeId?: string | null) => {
+    if (!assigneeId || usersLoading || users.length === 0) return null;
+    return users.find(user => user.uid === assigneeId);
+  }, [users, usersLoading]);
 
   const filteredTasks = useMemo(() => {
-    let currentTasksToShow: Task[];
-    if (currentUser?.role === 'manager') {
-        currentTasksToShow = [...mockTasks]; 
-    } else if (currentUser?.role === 'employee') {
-        currentTasksToShow = mockTasks.filter(task => task.assigneeId === currentUser.id);
-    } else {
-        currentTasksToShow = [];
-    }
+    let currentTasksToShow = [...tasks]; 
     
-    let filtered = [...currentTasksToShow]; 
-
     if (filters.searchTerm) {
-      filtered = filtered.filter(task =>
+      currentTasksToShow = currentTasksToShow.filter(task =>
         task.title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
         task.description?.toLowerCase().includes(filters.searchTerm.toLowerCase())
       );
     }
     if (filters.status && filters.status !== "all") {
-      filtered = filtered.filter(task => task.status === filters.status);
+      currentTasksToShow = currentTasksToShow.filter(task => task.status === filters.status);
     }
     if (filters.priority && filters.priority !== "all") {
-      filtered = filtered.filter(task => task.priority === filters.priority);
+      currentTasksToShow = currentTasksToShow.filter(task => task.priority === filters.priority);
     }
     if (filters.assignee && filters.assignee !== "all" && currentUser?.role === 'manager') {
-      filtered = filtered.filter(task => task.assigneeId === filters.assignee);
+      currentTasksToShow = currentTasksToShow.filter(task => task.assigneeId === filters.assignee);
     }
-    return filtered;
-  }, [filters, currentUser, refreshKey, getUserById]); 
+    return currentTasksToShow;
+  }, [tasks, filters, currentUser?.role]); 
   
   const sortedTasks = useMemo(() => {
     let sortableTasks = [...filteredTasks];
@@ -187,10 +185,9 @@ export default function TasksPage() {
           aValue = getUserById(a.assigneeId)?.name || "";
           bValue = getUserById(b.assigneeId)?.name || "";
         } else if (sortConfig.key === "dueDate" || sortConfig.key === "createdAt" || sortConfig.key === "updatedAt") {
-          aValue = a[sortConfig.key] ? parseISO(a[sortConfig.key]!).getTime() : 0;
-          bValue = b[sortConfig.key] ? parseISO(b[sortConfig.key]!).getTime() : 0;
-        }
-         else {
+          aValue = a[sortConfig.key as keyof Task] ? parseISO(a[sortConfig.key as keyof Task] as string).getTime() : 0;
+          bValue = b[sortConfig.key as keyof Task] ? parseISO(b[sortConfig.key as keyof Task] as string).getTime() : 0;
+        } else {
           aValue = a[sortConfig.key as keyof Task];
           bValue = b[sortConfig.key as keyof Task];
         }
@@ -198,6 +195,9 @@ export default function TasksPage() {
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           return sortConfig.direction === 'ascending' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
         }
+        if (aValue === null || aValue === undefined) aValue = sortConfig.direction === 'ascending' ? Infinity : -Infinity;
+        if (bValue === null || bValue === undefined) bValue = sortConfig.direction === 'ascending' ? Infinity : -Infinity;
+
         if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
@@ -249,10 +249,22 @@ export default function TasksPage() {
 
       <TaskFilterControls 
         onFilterChange={handleFilterChange} 
+        // Pass users for assignee filter if manager
+        assignees={currentUser.role === 'manager' ? users : []}
+        isLoadingAssignees={usersLoading}
       />
 
       <Card className="shadow-md">
         <CardContent className="p-0">
+           {tasksLoading && (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
+          {tasksError && (
+            <div className="p-4 text-destructive">Error loading tasks: {tasksError.message}</div>
+          )}
+          {!tasksLoading && !tasksError && (
           <Table>
             <TableHeader>
               <TableRow>
@@ -268,7 +280,7 @@ export default function TasksPage() {
             <TableBody>
               {sortedTasks.length > 0 ? sortedTasks.map((task) => {
                 const assignee = getUserById(task.assigneeId);
-                const canModify = currentUser.role === 'manager' || task.assigneeId === currentUser.id;
+                const canModify = currentUser.role === 'manager' || task.assigneeId === currentUser.uid;
                 return (
                   <TableRow key={task.id} className={task.status === 'done' ? 'opacity-60' : ''}>
                     <TableCell className="font-medium">
@@ -317,6 +329,7 @@ export default function TasksPage() {
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

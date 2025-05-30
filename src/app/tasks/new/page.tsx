@@ -1,5 +1,5 @@
 
-"use client"; // Required for hooks like useAuth, useRouter
+"use client"; 
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TaskForm } from "@/components/tasks/TaskForm";
@@ -15,9 +15,11 @@ export default function NewTaskPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (!currentUser || currentUser.role !== "manager") {
-        // Only managers can create tasks for now, redirect others
-        router.replace("/login"); // Or an unauthorized page or employee dashboard
+      if (!currentUser) {
+        router.replace("/login");
+      } else if (currentUser.role !== "manager") {
+        // Only managers can create tasks
+        router.replace("/dashboard/employee"); // Or an unauthorized page
       }
     }
   }, [currentUser, isLoading, router]);

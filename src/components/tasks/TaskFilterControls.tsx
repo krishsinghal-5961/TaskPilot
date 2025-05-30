@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Input } from "@/components/ui/input";
@@ -9,31 +10,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { mockUsers } from "@/lib/mock-data";
-import type { TaskStatus, TaskPriority } from "@/types";
+import type { TaskStatus, TaskPriority, UserProfile } from "@/types";
 import { FilterX, Search } from "lucide-react";
 
 interface TaskFilterControlsProps {
   onFilterChange: (filters: Record<string, string>) => void;
-  // Add other props like current filters if needed for controlled component
+  assignees?: UserProfile[];
+  isLoadingAssignees?: boolean;
 }
 
-export function TaskFilterControls({ onFilterChange }: TaskFilterControlsProps) {
-  // In a real app, manage filter state here or in parent
+export function TaskFilterControls({ 
+    onFilterChange, 
+    assignees = [], 
+    isLoadingAssignees = false 
+}: TaskFilterControlsProps) {
+  
   const handleInputChange = (name: string, value: string) => {
-    // This is a simplified example. You'd likely want to debounce search input
-    // and manage filter state more robustly.
     onFilterChange({ [name]: value }); 
   };
   
   const clearFilters = () => {
-    // Logic to clear filters and call onFilterChange with empty/default values
-    // For now, just calls with empty to signal a reset intent
     onFilterChange({}); 
-    // You might need to reset form inputs here if they are not controlled by a parent state
     const searchInput = document.getElementById("search-task") as HTMLInputElement | null;
     if (searchInput) searchInput.value = "";
-    // Similarly reset Select components if needed, though Shadcn's Select might need more direct state management.
+    // Consider resetting select components by controlling their value from parent or using a key prop to re-mount.
+    // For now, they will visually retain selection but filter logic will reset.
   }
 
   return (
@@ -73,14 +74,15 @@ export function TaskFilterControls({ onFilterChange }: TaskFilterControlsProps) 
         </SelectContent>
       </Select>
 
-      <Select onValueChange={(value) => handleInputChange("assignee", value)}>
+      <Select onValueChange={(value) => handleInputChange("assignee", value)} disabled={isLoadingAssignees}>
         <SelectTrigger>
           <SelectValue placeholder="Filter by assignee" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Assignees</SelectItem>
-          {mockUsers.map(user => (
-            <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+          {isLoadingAssignees && <SelectItem value="loading" disabled>Loading assignees...</SelectItem>}
+          {assignees.map(user => (
+            <SelectItem key={user.uid} value={user.uid}>{user.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>

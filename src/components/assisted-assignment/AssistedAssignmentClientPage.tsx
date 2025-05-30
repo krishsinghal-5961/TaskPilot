@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -22,14 +21,15 @@ import { Loader2, Wand2, Users, CalendarCheck, BarChart3, Info } from "lucide-re
 import { suggestDueDate, type SuggestDueDateInput, type SuggestDueDateOutput } from "@/ai/flows/suggest-due-date";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { mockUsers } from "@/lib/mock-data"; // Import mockUsers
-import type { User } from "@/types"; // Import User type
+import type { UserProfile } from "@/types";
 import { format, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useQuery } from "@tanstack/react-query";
+import { getAllUsers } from "@/services/userService";
+import { useAuth } from "@/contexts/AuthContext";
 
 
-// Team members are no longer part of the form schema, they will be auto-populated
 const assistedAssignmentSchema = z.object({
   taskDescription: z.string().min(10, { message: "Description must be at least 10 characters." }),
   priority: z.enum(["low", "medium", "high"]),
@@ -39,8 +39,15 @@ type AssistedAssignmentFormValues = z.infer<typeof assistedAssignmentSchema>;
 
 export function AssistedAssignmentClientPage() {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const { currentUser } = useAuth();
+  const [isAISuggesting, setIsAISuggesting] = useState(false);
   const [aiResult, setAiResult] = useState<SuggestDueDateOutput | null>(null);
+
+  const { data: teamMembersData, isLoading: teamMembersLoading } = useQuery<UserProfile[]>({
+    queryKey: ['users', 'forAIAssignment'],
+    queryFn: () => getAllUsers(), // Assuming getAllUsers fetches all relevant users
+    enabled: !!currentUser, // Only fetch if a user is logged in (manager in this case)
+  });
 
   const form = useForm<AssistedAssignmentFormValues>({
     resolver: zodResolver(assistedAssignmentSchema),
@@ -51,32 +58,41 @@ export function AssistedAssignmentClientPage() {
   });
 
   async function onSubmit(data: AssistedAssignmentFormValues) {
-    setIsLoading(true);
+    setIsAISuggesting(true);
     setAiResult(null);
     try {
-      const currentDate = new Date().toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      const currentDate = new Date().toISOString().split('T')[0]; 
       
-      // Automatically fetch and format team members
-      const teamMembersForAI = mockUsers
-        .filter((user: User) => user.role === 'employee')
-        .map(user => ({
-          name: user.name,
-          currentWorkload: user.currentWorkload || 0, // Default to 0 if undefined
-        }));
-
-      if (teamMembersForAI.length === 0) {
+      if (!teamMembersData || teamMembersData.length === 0) {
         toast({
           title: "No Team Members",
           description: "Could not find any employees to assign tasks to. Please add employees in the Team Management section.",
           variant: "destructive",
         });
-        setIsLoading(false);
+        setIsAISuggesting(false);
+        return;
+      }
+      
+      const employeesForAI = teamMembersData
+        .filter((user: UserProfile) => user.role === 'employee')
+        .map(user => ({
+          name: user.name,
+          currentWorkload: user.currentWorkload || 0,
+        }));
+
+      if (employeesForAI.length === 0) {
+        toast({
+          title: "No Employees Found",
+          description: "No users with the 'employee' role found for AI suggestion.",
+          variant: "destructive",
+        });
+        setIsAISuggesting(false);
         return;
       }
       
       const inputForAI: SuggestDueDateInput = {
         ...data,
-        teamMembers: teamMembersForAI,
+        teamMembers: employeesForAI,
         currentDate,
       };
 
@@ -98,7 +114,7 @@ export function AssistedAssignmentClientPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsAISuggesting(false);
     }
   }
 
@@ -119,7 +135,7 @@ export function AssistedAssignmentClientPage() {
                   <FormItem>
                     <FormLabel>Task Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Describe the task to be assigned..." {...field} rows={4} />
+                      <Textarea placeholder="Describe the task to be assigned..." {...field} rows={4} disabled={isAISuggesting || teamMembersLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -132,7 +148,7 @@ export function AssistedAssignmentClientPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isAISuggesting || teamMembersLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select task priority" />
@@ -151,19 +167,20 @@ export function AssistedAssignmentClientPage() {
               
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>Team Data</AlertTitle>
+                <AlertTitle>Team Data {teamMembersLoading && <Loader2 className="inline h-4 w-4 animate-spin ml-2" />}</AlertTitle>
                 <AlertDescription>
-                  The AI will automatically consider all current employees and their workloads from the "Manage Team" section.
+                  The AI will automatically consider all current employees and their workloads.
+                  {teamMembersLoading && " Loading team data..."}
                 </AlertDescription>
               </Alert>
               
-              <Button type="submit" disabled={isLoading} className="w-full">
-                {isLoading ? (
+              <Button type="submit" disabled={isAISuggesting || teamMembersLoading} className="w-full">
+                {isAISuggesting || teamMembersLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Wand2 className="mr-2 h-4 w-4" />
                 )}
-                Get AI Suggestion
+                {teamMembersLoading ? "Loading Team..." : isAISuggesting ? "Getting Suggestion..." : "Get AI Suggestion"}
               </Button>
             </form>
           </Form>
@@ -176,14 +193,14 @@ export function AssistedAssignmentClientPage() {
           <CardDescription>The AI's recommendations for due date, assignee(s), and workload will appear here.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading && (
+          {isAISuggesting && (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin mb-2" />
               <p>Generating suggestion...</p>
             </div>
           )}
-          {!isLoading && !aiResult && (
-            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion. Ensure your GOOGLE_API_KEY is set in .env if you're running locally.</p>
+          {!isAISuggesting && !aiResult && (
+            <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion. Ensure your GOOGLE_API_KEY is set in .env.</p>
           )}
           {aiResult && (
             <div className="space-y-6">
@@ -233,4 +250,3 @@ export function AssistedAssignmentClientPage() {
     </div>
   );
 }
-

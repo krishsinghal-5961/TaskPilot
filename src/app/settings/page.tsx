@@ -36,11 +36,12 @@ import { useToast } from "@/hooks/use-toast";
 
 const editNameSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  // Add other editable fields here if needed, e.g., designation
 });
 type EditNameFormValues = z.infer<typeof editNameSchema>;
 
 export default function SettingsPage() {
-  const { currentUser, isLoading, updateCurrentUserDetails } = useAuth();
+  const { currentUser, isLoading, updateCurrentUserDetails, firebaseUser } = useAuth();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
@@ -60,7 +61,6 @@ export default function SettingsPage() {
   }, [currentUser, isLoading, router]);
 
   useEffect(() => {
-    // Update form default value if currentUser changes (e.g. after initial load or re-login)
     if (currentUser) {
       editNameForm.reset({ name: currentUser.name });
     }
@@ -78,6 +78,7 @@ export default function SettingsPage() {
 
   async function onEditNameSubmit(data: EditNameFormValues) {
     if (!currentUser) return;
+    // Only pass fields that are part of UserProfile and intended for update
     const success = await updateCurrentUserDetails({ name: data.name });
     if (success) {
       toast({ title: "Name Updated", description: "Your name has been successfully updated." });
@@ -134,17 +135,20 @@ export default function SettingsPage() {
                         />
                         <DialogFooter>
                           <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                          <Button type="submit">Save Changes</Button>
+                          <Button type="submit" disabled={editNameForm.formState.isSubmitting}>
+                            {editNameForm.formState.isSubmitting && <Loader2 className="animate-spin mr-2 h-4 w-4"/>}
+                            Save Changes</Button>
                         </DialogFooter>
                       </form>
                     </Form>
                   </DialogContent>
                 </Dialog>
               </div>
-              <p className="text-muted-foreground">User ID: {currentUser.id}</p>
+              <p className="text-muted-foreground">User ID: {currentUser.uid}</p>
               <p className="text-muted-foreground">Name: {currentUser.name}</p>
               <p className="text-muted-foreground">Email: {currentUser.email}</p>
               <p className="text-muted-foreground">Role: {currentUser.role}</p>
+              {currentUser.designation && <p className="text-muted-foreground">Designation: {currentUser.designation}</p>}
             </div>
 
             <div className="p-4 border rounded-lg">

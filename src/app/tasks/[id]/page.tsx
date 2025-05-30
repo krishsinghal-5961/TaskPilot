@@ -1,21 +1,18 @@
 
-"use client"; // Required for hooks
+"use client";
 
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TaskDetailView } from "@/components/tasks/TaskDetailView";
-import { mockTasks } from "@/lib/mock-data"; 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getTaskById } from "@/services/taskService";
 import type { Task } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-// No generateStaticParams for dynamic, auth-protected routes
-// export async function generateStaticParams() {
-//   return mockTasks.map(task => ({ id: task.id }));
-// }
 
 interface TaskPageProps {
   params: { id: string };
@@ -24,8 +21,13 @@ interface TaskPageProps {
 export default function TaskPage({ params }: TaskPageProps) {
   const { currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [task, setTask] = useState<Task | null | undefined>(undefined); // undefined for initial, null if not found
-  const [loadingTask, setLoadingTask] = useState(true);
+  const taskId = params.id;
+
+  const { data: task, isLoading: taskLoading, error: taskError } = useQuery<Task | null>({
+    queryKey: ['task', taskId],
+    queryFn: () => getTaskById(taskId),
+    enabled: !!taskId,
+  });
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -34,22 +36,16 @@ export default function TaskPage({ params }: TaskPageProps) {
   }, [currentUser, authLoading, router]);
 
   useEffect(() => {
-    const foundTask = mockTasks.find(t => t.id === params.id);
-    setTask(foundTask || null); // Set to null if not found
-    setLoadingTask(false);
-  }, [params.id]);
-
-  useEffect(() => {
-    if (!authLoading && !loadingTask && currentUser && task !== undefined) { // task can be null here
-      if (task && currentUser.role === 'employee' && task.assigneeId !== currentUser.id) {
+    if (!authLoading && !taskLoading && currentUser && task) {
+      if (task && currentUser.role === 'employee' && task.assigneeId !== currentUser.uid) {
         // Employee trying to access a task not assigned to them
-        router.replace("/tasks"); // Or an "Access Denied" page
+        router.replace("/tasks"); 
       }
     }
-  }, [currentUser, authLoading, task, loadingTask, router]);
+  }, [currentUser, authLoading, task, taskLoading, router]);
 
 
-  if (authLoading || loadingTask || currentUser === undefined) {
+  if (authLoading || taskLoading || currentUser === undefined) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -58,7 +54,24 @@ export default function TaskPage({ params }: TaskPageProps) {
     );
   }
   
-  if (task === null) { // Task explicitly not found
+  if (taskError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Error Loading Task"
+          description={`Could not load details for task ID: ${params.id}`}
+        />
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-destructive">{(taskError as Error).message}</p>
+            <Button onClick={() => router.push('/tasks')} className="mt-4">Go to Tasks</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (task === null) { 
      return (
       <div className="space-y-6">
         <PageHeader
@@ -75,8 +88,8 @@ export default function TaskPage({ params }: TaskPageProps) {
     );
   }
   
-  // If an employee is trying to access a task not assigned to them (final check after task loaded)
-  if (task && currentUser && currentUser.role === 'employee' && task.assigneeId !== currentUser.id) {
+  // Final access check
+  if (task && currentUser && currentUser.role === 'employee' && task.assigneeId !== currentUser.uid) {
       return (
         <div className="space-y-6">
           <PageHeader
@@ -100,7 +113,7 @@ export default function TaskPage({ params }: TaskPageProps) {
         title={taskTitle}
         description={`Viewing details for task ID: ${params.id}`}
       />
-      <TaskDetailView taskId={params.id} />
+      <TaskDetailView taskId={params.id} initialTask={task} />
     </div>
   );
 }

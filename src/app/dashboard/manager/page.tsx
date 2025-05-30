@@ -3,11 +3,10 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2 } from "lucide-react";
 import { SummaryCard } from "@/components/dashboard/SummaryCard";
-import { mockTasks, mockUsers } from "@/lib/mock-data";
 import { AlertTriangle, CheckCircle2, ListTodo, Users, PackageOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,20 +15,51 @@ import Image from "next/image";
 import { TaskPriorityBadge, TaskStatusBadge } from "@/components/tasks/TaskBadges";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { format } from "date-fns";
-
+import { format, parseISO } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { getAllTasks } from "@/services/taskService";
+import { getAllUsers } from "@/services/userService";
+import type { Task, UserProfile } from "@/types";
 
 export default function ManagerDashboardPage() {
-  const { currentUser, isLoading, logout } = useAuth();
+  const { currentUser, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && (!currentUser || currentUser.role !== "manager")) {
+    if (!authLoading && (!currentUser || currentUser.role !== "manager")) {
       router.replace("/login");
     }
-  }, [currentUser, isLoading, router]);
+  }, [currentUser, authLoading, router]);
 
-  if (isLoading || !currentUser) {
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
+    queryKey: ['tasks', 'managerDashboard'],
+    queryFn: () => getAllTasks(currentUser?.uid, 'manager'), // Fetch all tasks for manager
+    enabled: !!currentUser && currentUser.role === 'manager',
+  });
+
+  const { data: teamMembers = [], isLoading: usersLoading } = useQuery<UserProfile[]>({
+    queryKey: ['users', 'managerDashboard'],
+    queryFn: getAllUsers,
+    enabled: !!currentUser && currentUser.role === 'manager',
+  });
+
+  const dashboardStats = useMemo(() => {
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(task => task.status === "done").length;
+    const overdueTasks = tasks.filter(task => task.dueDate && parseISO(task.dueDate) < new Date() && task.status !== "done").length;
+    const highPriorityTasks = tasks.filter(task => task.priority === "high" && task.status !== "done").length;
+    return { totalTasks, completedTasks, overdueTasks, highPriorityTasks };
+  }, [tasks]);
+
+  const recentTasks = useMemo(() => 
+    [...tasks]
+    .sort((a, b) => parseISO(b.updatedAt).getTime() - parseISO(a.updatedAt).getTime())
+    .slice(0, 5), 
+  [tasks]);
+  
+  const getUserById = (id?: string | null) => teamMembers.find(user => user.uid === id);
+
+  if (authLoading || !currentUser || tasksLoading || usersLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -37,18 +67,6 @@ export default function ManagerDashboardPage() {
     );
   }
   
-  const totalTasks = mockTasks.length;
-  const completedTasks = mockTasks.filter(task => task.status === "done").length;
-  const overdueTasks = mockTasks.filter(task => task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done").length;
-  const highPriorityTasks = mockTasks.filter(task => task.priority === "high" && task.status !== "done").length;
-
-  const recentTasks = [...mockTasks]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 5);
-  
-  const getUserById = (id?: string) => mockUsers.find(user => user.id === id);
-
-
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -58,10 +76,10 @@ export default function ManagerDashboardPage() {
       />
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard title="Total Tasks" value={totalTasks} icon={PackageOpen} footerText="Across all projects" />
-        <SummaryCard title="Completed Tasks" value={completedTasks} icon={CheckCircle2} footerText={`${totalTasks > 0 ? Math.round((completedTasks/totalTasks)*100) : 0}% completion`} />
-        <SummaryCard title="Overdue Tasks" value={overdueTasks} icon={AlertTriangle} changeType={overdueTasks > 0 ? "negative" : undefined} />
-        <SummaryCard title="High Priority Active" value={highPriorityTasks} icon={ListTodo} />
+        <SummaryCard title="Total Tasks" value={dashboardStats.totalTasks} icon={PackageOpen} footerText="Across all projects" />
+        <SummaryCard title="Completed Tasks" value={dashboardStats.completedTasks} icon={CheckCircle2} footerText={`${dashboardStats.totalTasks > 0 ? Math.round((dashboardStats.completedTasks/dashboardStats.totalTasks)*100) : 0}% completion`} />
+        <SummaryCard title="Overdue Tasks" value={dashboardStats.overdueTasks} icon={AlertTriangle} changeType={dashboardStats.overdueTasks > 0 ? "negative" : undefined} />
+        <SummaryCard title="High Priority Active" value={dashboardStats.highPriorityTasks} icon={ListTodo} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -82,7 +100,7 @@ export default function ManagerDashboardPage() {
                       <div>
                         <Link href={`/tasks/${task.id}`} className="font-medium text-primary hover:underline">{task.title}</Link>
                         <p className="text-xs text-muted-foreground">
-                          Due: {task.dueDate ? format(new Date(task.dueDate), "MMM dd, yyyy") : "N/A"}
+                          Due: {task.dueDate ? format(parseISO(task.dueDate), "MMM dd, yyyy") : "N/A"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -110,8 +128,8 @@ export default function ManagerDashboardPage() {
             <CardTitle>Team Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockUsers.filter(u => u.role === 'employee').slice(0,4).map(user => ( 
-              <div key={user.id} className="flex items-center gap-3 p-2 bg-secondary/30 rounded-lg">
+            {teamMembers.filter(u => u.role === 'employee').slice(0,4).map(user => ( 
+              <div key={user.uid} className="flex items-center gap-3 p-2 bg-secondary/30 rounded-lg">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="team member avatar" />
                   <AvatarFallback>{getInitials(user.name)}</AvatarFallback>

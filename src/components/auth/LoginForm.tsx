@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
-  employeeId: z.string().min(1, "Employee ID is required."),
+  email: z.string().email("Please enter a valid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -27,21 +28,22 @@ export function LoginForm() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      employeeId: "",
+      email: "",
+      password: "",
     },
   });
 
   async function onSubmit(data: LoginFormValues) {
     setIsSubmitting(true);
-    const success = await login(data.employeeId);
+    const success = await login(data.email, data.password);
     if (!success) {
       toast({
         title: "Login Failed",
-        description: "Invalid Employee ID. Please try again.",
+        description: "Invalid email or password. Please try again.",
         variant: "destructive",
       });
     }
-    // On success, AuthContext handles redirection
+    // On success, AuthContext handles redirection via onAuthStateChanged effect
     setIsSubmitting(false);
   }
 
@@ -51,20 +53,34 @@ export function LoginForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Login to TaskPilot</CardTitle>
-        <CardDescription>Enter your Employee ID to access your dashboard.</CardDescription>
+        <CardDescription>Enter your email and password to access your dashboard.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="employeeId">Employee ID</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
-              id="employeeId"
-              placeholder="e.g., priya-mgr"
-              {...form.register("employeeId")}
+              id="email"
+              type="email"
+              placeholder="e.g., priya-mgr@gmail.com"
+              {...form.register("email")}
               disabled={isLoading}
             />
-            {form.formState.errors.employeeId && (
-              <p className="text-sm text-destructive">{form.formState.errors.employeeId.message}</p>
+            {form.formState.errors.email && (
+              <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Your password"
+              {...form.register("password")}
+              disabled={isLoading}
+            />
+            {form.formState.errors.password && (
+              <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
             )}
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
@@ -76,7 +92,7 @@ export function LoginForm() {
           </Button>
         </form>
         <p className="mt-4 text-xs text-center text-muted-foreground">
-          Hint: Try 'priya-mgr' (Priya Sharma - manager), 'rohan-dev', 'aisha-dev', or 'vikram-qa' (employees).
+          Hint: Ensure users like 'priya-mgr@gmail.com' are created in Firebase Auth.
         </p>
       </CardContent>
     </Card>

@@ -11,6 +11,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+// Removed direct import of getAllUsers from userService as Genkit flows should receive data.
+// If this flow were to call services, they'd need to be Admin SDK based or a separate callable flow.
 
 const SuggestDueDateInputSchema = z.object({
   taskDescription: z.string().describe('Description of the task to be completed.'),
@@ -38,6 +40,7 @@ const SuggestDueDateOutputSchema = z.object({
 export type SuggestDueDateOutput = z.infer<typeof SuggestDueDateOutputSchema>;
 
 export async function suggestDueDate(input: SuggestDueDateInput): Promise<SuggestDueDateOutput> {
+  // The client component will now fetch team members and pass them in the input.
   return suggestDueDateFlow(input);
 }
 
@@ -71,22 +74,10 @@ The 'projectedWorkloadAfterAssignment' array should include an entry for every t
 `,
   config: {
     safetySettings: [
-      {
-        category: 'HARM_CATEGORY_HATE_SPEECH',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_HARASSMENT',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-        threshold: 'BLOCK_NONE',
-      },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
     ],
   },
 });
@@ -102,8 +93,6 @@ const suggestDueDateFlow = ai.defineFlow(
     const output = generationResponse.output;
 
     if (!output) {
-      // Log the raw response if output is null/undefined.
-      // The `generationResponse` object might contain more details, e.g., safety ratings or finish reasons.
       console.error(
         "AI response output was null or undefined from suggestDueDatePrompt. Input:",
         input,
@@ -114,7 +103,12 @@ const suggestDueDateFlow = ai.defineFlow(
         "AI response did not yield a usable output. It might be empty, malformed, or blocked by content filters. Check the server console for the full AI response details."
       );
     }
+     // Basic validation of output structure (Zod already does this on prompt definition if schema is well-defined)
+    if (!output.suggestedDueDate || !Array.isArray(output.suggestedAssignees) || !Array.isArray(output.projectedWorkloadAfterAssignment)) {
+        console.error("AI response output is missing required fields. Output:", output, "Input:", input, "Full generationResponse:", generationResponse);
+        throw new Error("AI response is malformed or missing critical fields. Check server logs.");
+    }
+
     return output;
   }
 );
-

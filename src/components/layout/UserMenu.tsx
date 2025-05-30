@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CreditCard, LogOut, Settings, User as UserIcon, LogIn } from "lucide-react";
+import { CreditCard, LogOut, Settings, User as UserIcon, LogIn, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getInitials } from "@/lib/utils";
 import Link from "next/link";
@@ -20,7 +20,7 @@ export function UserMenu() {
   const { currentUser, logout, isLoading } = useAuth();
 
   if (isLoading) {
-    return ( // Or a loading skeleton
+    return ( 
         <div className="h-9 w-9 rounded-full bg-muted animate-pulse"></div>
     );
   }
@@ -56,17 +56,21 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <UserIcon className="mr-2 h-4 w-4" />
-          <span>Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
+        {/* <DropdownMenuItem asChild>
+           <Link href={`/profile/${currentUser.uid}`}> // Example profile link
+            <UserIcon className="mr-2 h-4 w-4" />
+            <span>Profile</span>
+          </Link>
+        </DropdownMenuItem> */}
+        {/* <DropdownMenuItem>
           <CreditCard className="mr-2 h-4 w-4" />
           <span>Billing</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
+        </DropdownMenuItem> */}
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>

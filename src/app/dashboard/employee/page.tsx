@@ -3,38 +3,48 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ListChecks, CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { mockTasks } from "@/lib/mock-data"; // Temporary for example
 import { TaskStatusBadge, TaskPriorityBadge } from "@/components/tasks/TaskBadges";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { getAllTasks } from "@/services/taskService";
+import type { Task } from "@/types";
 
 export default function EmployeeDashboardPage() {
-  const { currentUser, isLoading, logout } = useAuth();
+  const { currentUser, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && (!currentUser || currentUser.role !== "employee")) {
+    if (!authLoading && (!currentUser || currentUser.role !== "employee")) {
       router.replace("/login");
     }
-  }, [currentUser, isLoading, router]);
+  }, [currentUser, authLoading, router]);
 
-  if (isLoading || !currentUser) {
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
+    queryKey: ['tasks', currentUser?.uid, 'employeeDashboard'],
+    queryFn: () => getAllTasks(currentUser?.uid, 'employee'),
+    enabled: !!currentUser && currentUser.role === 'employee',
+  });
+
+  const dashboardStats = useMemo(() => {
+    const myOpenTasks = tasks.filter(task => task.status !== "done").length;
+    const myCompletedTasks = tasks.filter(task => task.status === "done").length;
+    return { myOpenTasks, myCompletedTasks };
+  }, [tasks]);
+
+
+  if (authLoading || !currentUser || tasksLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
-
-  // Filter tasks for the current employee - this will be improved later
-  const myTasks = mockTasks.filter(task => task.assigneeId === currentUser.id);
-  const myOpenTasks = myTasks.filter(task => task.status !== "done").length;
-  const myCompletedTasks = myTasks.filter(task => task.status === "done").length;
 
   return (
     <div className="space-y-6">
@@ -51,7 +61,7 @@ export default function EmployeeDashboardPage() {
             <ListChecks className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{myOpenTasks}</div>
+            <div className="text-3xl font-bold text-foreground">{dashboardStats.myOpenTasks}</div>
             <p className="text-xs text-muted-foreground mt-1">Tasks assigned to you that are not yet completed.</p>
           </CardContent>
         </Card>
@@ -61,7 +71,7 @@ export default function EmployeeDashboardPage() {
             <CheckCircle className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{myCompletedTasks}</div>
+            <div className="text-3xl font-bold text-foreground">{dashboardStats.myCompletedTasks}</div>
             <p className="text-xs text-muted-foreground mt-1">Tasks you have successfully completed.</p>
           </CardContent>
         </Card>
@@ -73,14 +83,14 @@ export default function EmployeeDashboardPage() {
           <CardDescription>A quick look at tasks assigned to you.</CardDescription>
         </CardHeader>
         <CardContent>
-          {myTasks.length > 0 ? (
+          {tasks.length > 0 ? (
             <ul className="space-y-3">
-              {myTasks.slice(0, 5).map(task => ( // Show first 5 tasks
+              {tasks.slice(0, 5).map(task => ( // Show first 5 tasks
                 <li key={task.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
                   <div>
                     <Link href={`/tasks/${task.id}`} className="font-medium text-primary hover:underline">{task.title}</Link>
                     <p className="text-xs text-muted-foreground">
-                      Due: {task.dueDate ? format(new Date(task.dueDate), "MMM dd, yyyy") : "N/A"}
+                      Due: {task.dueDate ? format(parseISO(task.dueDate), "MMM dd, yyyy") : "N/A"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
