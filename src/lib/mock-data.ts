@@ -20,7 +20,7 @@ export const mockUsers: UserProfile[] = [
     role: "manager",
     designation: "Engineering Manager",
     avatarUrl: `https://placehold.co/100x100.png?text=${getInitials("Priya Sharma")}`,
-    currentWorkload: 20,
+    currentWorkload: 30, // Varied workload
   },
   {
     uid: rohanId,
@@ -94,12 +94,12 @@ export const mockTasks: Task[] = [
     id: "task-3",
     title: "Setup CI/CD Pipeline",
     description: "Configure a continuous integration and continuous deployment pipeline for automated testing and deployment.",
-    status: "blocked", // Changed to blocked for variety
+    status: "blocked", 
     priority: "medium",
     dueDate: formatISO(addDays(today, 21)),
     assigneeId: rohanId,
     progress: 0,
-    dependencies: ["task-2"], // Depends on auth system
+    dependencies: ["task-2"], 
     createdAt: formatISO(subDays(today, 5)),
     updatedAt: formatISO(subDays(today, 5)),
     userId: managerId,
@@ -111,7 +111,7 @@ export const mockTasks: Task[] = [
     status: "todo",
     priority: "low",
     dueDate: null,
-    assigneeId: null, // Unassigned task
+    assigneeId: null, 
     progress: 0,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),
@@ -124,7 +124,7 @@ export const mockTasks: Task[] = [
     description: "Conduct load testing and performance analysis to identify and address bottlenecks.",
     status: "done",
     priority: "medium",
-    dueDate: formatISO(subDays(today, 2)), // Due in the past, but done
+    dueDate: formatISO(subDays(today, 2)), 
     assigneeId: vikramId,
     progress: 100,
     dependencies: [],
@@ -136,11 +136,11 @@ export const mockTasks: Task[] = [
     id: "task-6",
     title: "Write Project Proposal for New Feature",
     description: "Outline the scope, benefits, and resources required for the upcoming AI-driven reporting feature.",
-    status: "in-progress", // Changed
+    status: "in-progress", 
     priority: "high",
     dueDate: formatISO(addDays(today, 5)),
     assigneeId: krishId,
-    progress: 30, // Updated progress
+    progress: 30, 
     dependencies: [], 
     createdAt: formatISO(subDays(today, 4)),
     updatedAt: formatISO(subDays(today, 1)),
@@ -180,7 +180,7 @@ export const mockTasks: Task[] = [
     description: "This task was due yesterday and is not done.",
     status: "in-progress",
     priority: "high",
-    dueDate: formatISO(subDays(today, 1)), // Overdue
+    dueDate: formatISO(subDays(today, 1)), 
     assigneeId: rohanId,
     progress: 10,
     dependencies: [],
@@ -208,15 +208,15 @@ export const mockTasks: Task[] = [
 export const mockNotifications: Notification[] = [
   {
     id: "notif-1",
-    userId: rohanId,
-    message: `Task 'Design Homepage UI' is due in ${formatISO(addDays(today, 7), { representation: 'date' })}.`,
-    timestamp: formatISO(subDays(today, 1)),
+    userId: rohanId, // Employee
+    message: `Task 'Design Homepage UI' is due soon.`,
+    timestamp: formatISO(subMinutes(today, 5)), // More recent
     read: false,
     link: "/tasks/task-1",
   },
   {
     id: "notif-2",
-    userId: managerId,
+    userId: managerId, // Manager
     message: "Aisha Khan updated progress on 'Develop Authentication System' to 10%.",
     timestamp: formatISO(subHours(today, 1)), 
     read: false,
@@ -224,15 +224,15 @@ export const mockNotifications: Notification[] = [
   },
   {
     id: "notif-3",
-    userId: vikramId,
+    userId: vikramId, // Employee
     message: "New task 'User Acceptance Testing (UAT) for v1.0' assigned to you.",
-    timestamp: formatISO(subDays(today, 2)),
+    timestamp: formatISO(subDays(today, 1)), // Older
     read: true,
     link: "/tasks/task-7",
   },
   {
     id: 'notif-4',
-    userId: managerId,
+    userId: managerId, // Manager
     message: "Vikram Singh completed task 'Test Application Performance'.",
     timestamp: formatISO(subDays(today, 1)),
     read: true,
@@ -240,94 +240,61 @@ export const mockNotifications: Notification[] = [
   },
   {
     id: 'notif-5',
-    userId: rohanId, 
+    userId: rohanId, // Employee
     message: "Dependency 'Develop Authentication System' for your task 'Setup CI/CD Pipeline' has been updated (Progress: 10%).",
-    timestamp: formatISO(today),
+    timestamp: formatISO(subHours(today, 3)),
     read: false,
     link: '/tasks/task-3',
   },
   {
     id: 'notif-6',
-    userId: krishId,
+    userId: krishId, // Employee
     message: "Your task 'Write Project Proposal for New Feature' progress updated to 30%.",
-    timestamp: formatISO(subDays(today, 1)),
+    timestamp: formatISO(subHours(today, 2)),
     read: false,
     link: '/tasks/task-6',
   },
   {
     id: 'notif-7',
-    userId: managerId,
-    message: "Task 'Write API Documentation' has no assignee yet. Please assign it.",
+    userId: managerId, // Manager
+    message: "Task 'Write API Documentation' is unassigned. Please assign it.",
     timestamp: formatISO(subDays(today, 3)),
     read: false,
     link: '/tasks/task-4',
   },
   {
     id: 'notif-8',
-    userId: aishaId,
-    message: `Reminder: Task 'Prepare Marketing Materials' due date is approaching (${formatISO(addDays(today, 30), { representation: 'date' })}).`,
-    timestamp: formatISO(addDays(today, 12)), 
-    read: false,
+    userId: aishaId, // Employee
+    message: `Reminder: Task 'Prepare Marketing Materials' due date is approaching.`,
+    timestamp: formatISO(subMinutes(today, 150)), 
+    read: true,
     link: '/tasks/task-8',
   },
   {
     id: 'notif-9',
-    userId: managerId,
+    userId: managerId, // Manager
     message: "Rohan Mehra's task 'Overdue Task Example' is now overdue.",
-    timestamp: formatISO(today),
+    timestamp: formatISO(subHours(today, 4)),
     read: false,
     link: '/tasks/task-9',
   },
   {
     id: 'notif-10',
-    userId: rohanId,
+    userId: rohanId, // Employee
     message: "Your task 'Setup CI/CD Pipeline' is currently blocked because 'Develop Authentication System' is not yet done.",
-    timestamp: formatISO(subHours(today, 2)),
+    timestamp: formatISO(subHours(today, 6)),
     read: true,
     link: '/tasks/task-3',
-  }
+  },
+  {
+    id: 'notif-11',
+    userId: managerId,
+    message: "Task 'Deploy to Staging' was marked as complete by Rohan Mehra.",
+    timestamp: formatISO(subMinutes(today, 10)),
+    read: false,
+    link: '/tasks/task-10',
+  },
 ];
 
-// Sample Chat Messages
-export const mockChatMessages: ChatMessage[] = [
-  {
-    id: 'chat-1',
-    senderId: managerId,
-    senderName: "Priya Sharma",
-    receiverId: rohanId,
-    text: "Hi Rohan, how's the homepage UI design coming along?",
-    timestamp: formatISO(subMinutes(today, 30)),
-  },
-  {
-    id: 'chat-2',
-    senderId: rohanId,
-    senderName: "Rohan Mehra",
-    receiverId: managerId,
-    text: "Hey Priya, making good progress! Should have the first draft by EOD.",
-    timestamp: formatISO(subMinutes(today, 28)),
-  },
-  {
-    id: 'chat-3',
-    senderId: aishaId,
-    senderName: "Aisha Khan",
-    receiverId: vikramId,
-    text: "Vikram, are you free to sync on the UAT plan for v1.0 later today?",
-    timestamp: formatISO(subMinutes(today, 60)),
-  },
-  {
-    id: 'chat-4',
-    senderId: vikramId,
-    senderName: "Vikram Singh",
-    receiverId: aishaId,
-    text: "Sure Aisha, how about 3 PM?",
-    timestamp: formatISO(subMinutes(today, 55)),
-  },
-   {
-    id: 'chat-5',
-    senderId: managerId,
-    senderName: "Priya Sharma",
-    receiverId: aishaId,
-    text: "Aisha, just checking in on the auth system. Any blockers?",
-    timestamp: formatISO(subHours(today, 2)),
-  },
-];
+// Sample Chat Messages - Initialized as empty to remove demo feel
+export const mockChatMessages: ChatMessage[] = [];

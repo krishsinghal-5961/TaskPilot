@@ -108,7 +108,7 @@ export function ChatClientPage() {
             </header>
 
             <ScrollArea className="flex-1 p-4 space-y-4 bg-background">
-              {displayedMessages.map(msg => (
+              {displayedMessages.length > 0 ? displayedMessages.map(msg => (
                 <div
                   key={msg.id}
                   className={cn(
@@ -133,7 +133,13 @@ export function ChatClientPage() {
                     </p>
                   </Card>
                 </div>
-              ))}
+              )) : (
+                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
+                    <MessageSquare className="h-16 w-16 mb-4 text-muted-foreground/50" />
+                    <p className="text-lg">No messages yet.</p>
+                    <p className="text-sm">Start the conversation!</p>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </ScrollArea>
             
@@ -164,10 +170,10 @@ export function ChatClientPage() {
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
             <User className="h-16 w-16 mb-4" />
             <p className="text-lg">Select a user to start chatting.</p>
-            <p className="text-sm">This is a simulated chat. Messages are not persisted.</p>
           </div>
         )}
       </main>
     </div>
   );
 }
+

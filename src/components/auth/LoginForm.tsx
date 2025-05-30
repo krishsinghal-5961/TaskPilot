@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { mockUsers } from "@/lib/mock-data"; // Import mockUsers for hints
 
 const loginSchema = z.object({
   employeeId: z.string().min(1, "Employee ID cannot be empty."),
@@ -49,9 +48,6 @@ export function LoginForm() {
 
   const isLoading = authLoading || isSubmitting;
 
-  const managerExample = mockUsers.find(u => u.role === 'manager');
-  const employeeExample = mockUsers.find(u => u.role === 'employee');
-
   return (
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
@@ -65,7 +61,7 @@ export function LoginForm() {
             <Input
               id="employeeId"
               type="text"
-              placeholder="e.g., priya-mgr or rohan-dev"
+              placeholder="Your Employee ID"
               {...form.register("employeeId")}
               disabled={isLoading}
             />
@@ -82,11 +78,6 @@ export function LoginForm() {
             )}
           </Button>
         </form>
-        <p className="mt-4 text-xs text-center text-muted-foreground">
-          Hint: Try 
-          {managerExample ? ` '${managerExample.uid}' (${managerExample.name} - manager)` : " a manager ID"} or 
-          {employeeExample ? ` '${employeeExample.uid}' (${employeeExample.name} - employee)` : " an employee ID"}.
-        </p>
       </CardContent>
     </Card>
   );

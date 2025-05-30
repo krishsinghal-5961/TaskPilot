@@ -31,7 +31,7 @@ export default function ChatPage() {
     <div className="h-[calc(100vh-var(--header-height,4rem)-2rem)] flex flex-col"> {/* Adjust height based on header */}
       <PageHeader
         title="Team Chat"
-        description="Connect with your team members. (Simulated chat)"
+        description="Connect with your team members."
       />
       <ChatClientPage />
     </div>

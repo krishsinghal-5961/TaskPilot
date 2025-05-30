@@ -170,7 +170,7 @@ export default function SettingsPage() {
 
             <div className="p-4 border rounded-lg">
               <h3 className="font-semibold text-lg">Notification Settings</h3>
-              <p className="text-muted-foreground">Manage how you receive notifications. (Using mock notifications)</p>
+              <p className="text-muted-foreground">Manage how you receive notifications.</p>
             </div>
           </div>
         </CardContent>
