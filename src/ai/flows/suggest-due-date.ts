@@ -11,8 +11,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// Removed direct import of getAllUsers from userService as Genkit flows should receive data.
-// If this flow were to call services, they'd need to be Admin SDK based or a separate callable flow.
 
 const SuggestDueDateInputSchema = z.object({
   taskDescription: z.string().describe('Description of the task to be completed.'),
@@ -31,10 +29,13 @@ const SuggestDueDateOutputSchema = z.object({
   suggestedAssignees: z.array(z.object({
     name: z.string().describe('Name of the suggested team member.'),
     reasoningForAssignment: z.string().describe('Explanation for why this member was suggested for the task.'),
-  })).describe('List of suggested team members to assign the task to. If multiple members are recommended, it implies they could collaborate or the task could be split.'),
+  })).min(1).describe('List of at least one suggested team member to assign the task to. If multiple members are recommended, it implies they could collaborate or the task could be split.'),
   projectedWorkloadAfterAssignment: z
-    .array(z.object({name: z.string(), projectedWorkload: z.number().min(0).max(100)}))
-    .describe('Projected workload for ALL originally listed team members after the suggested task assignment (even those not assigned the current task).'),
+    .array(z.object({
+        name: z.string().describe('Name of the team member, matching one from the input list.'),
+        projectedWorkload: z.number().min(0).max(100).describe('Projected workload percentage for this team member (0-100) after the task assignment. If not assigned the current task, this should be their original currentWorkload.')
+    }))
+    .describe('Projected workload for ALL team members originally listed in the input, after your suggested task assignment. Each member from the input must have an entry here.'),
 });
 
 export type SuggestDueDateOutput = z.infer<typeof SuggestDueDateOutputSchema>;
@@ -51,10 +52,10 @@ const suggestDueDatePrompt = ai.definePrompt({
   prompt: `You are an AI assistant expert in project management and team optimization. Your role is to help project managers assign tasks effectively.
 
 Based on the provided task details and team member information, you will:
-1. Suggest an optimal due date for the task.
-2. Recommend one or more suitable team members to assign the task to from the provided list. If multiple members are recommended, it implies they could collaborate or the task could be split.
+1. Suggest an optimal due date for the task (format: YYYY-MM-DD).
+2. Recommend one or more suitable team members to assign the task to from the provided list. If multiple members are recommended, it implies they could collaborate or the task could be split. You MUST suggest at least one assignee.
 3. Provide clear reasoning for both the due date suggestion and the assignee suggestion(s). For assignees, explain why they are a good fit considering their current workload and the task nature.
-4. Calculate and provide the projected workload for ALL team members originally listed, assuming your assignment recommendation is followed. The projected workload should reflect their load *after* this new task is hypothetically assigned to the suggested member(s). For members not assigned this specific task, their workload remains their current workload.
+4. Calculate and provide the projected workload for ALL team members originally listed in the input, assuming your assignment recommendation is followed. The projected workload should reflect their load *after* this new task is hypothetically assigned to the suggested member(s). For members not assigned this specific task, their workload remains their current workload. Ensure this array contains an entry for every team member from the input.
 
 Task Details:
 - Description: {{{taskDescription}}}
@@ -67,10 +68,35 @@ Team Members (Name, Current Workload %):
 {{/each}}
 
 Output format:
-Ensure your response is in JSON format, adhering to the provided output schema.
-The suggested due date should be in YYYY-MM-DD format.
-Projected workloads must be between 0 and 100 percent.
-The 'projectedWorkloadAfterAssignment' array should include an entry for every team member originally provided in the input, showing their workload *after* your suggested assignment.
+Ensure your response is ONLY a valid JSON object adhering to the provided output schema. Do not include any explanatory text before or after the JSON.
+The suggested due date must be in YYYY-MM-DD format.
+Projected workloads must be a number between 0 and 100 percent.
+The 'projectedWorkloadAfterAssignment' array MUST include an entry for every team member originally provided in the input.
+The 'suggestedAssignees' array MUST contain at least one assignee.
+
+Example of the expected JSON structure (DO NOT just copy this example, generate values based on the input):
+{
+  "suggestedDueDate": "YYYY-MM-DD",
+  "reasoningForDueDate": "Detailed explanation...",
+  "suggestedAssignees": [
+    {
+      "name": "Team Member A Name",
+      "reasoningForAssignment": "Reason for assigning to A..."
+    }
+    // ... more assignees if applicable
+  ],
+  "projectedWorkloadAfterAssignment": [
+    {
+      "name": "Team Member A Name", // Must match a name from input
+      "projectedWorkload": 75 // Example percentage
+    },
+    {
+      "name": "Team Member B Name", // Must match a name from input
+      "projectedWorkload": 50 // Example percentage
+    }
+    // ... and so on for ALL original team members
+  ]
+}
 `,
   config: {
     safetySettings: [
@@ -94,21 +120,41 @@ const suggestDueDateFlow = ai.defineFlow(
 
     if (!output) {
       console.error(
-        "AI response output was null or undefined from suggestDueDatePrompt. Input:",
-        input,
+        "AI response output was null or undefined from suggestDueDatePrompt. This usually means the AI's response did not match the expected schema or was blocked. Input:",
+        JSON.stringify(input, null, 2),
         "Full AI generationResponse object:",
-        generationResponse
+        JSON.stringify(generationResponse, null, 2)
       );
       throw new Error(
-        "AI response did not yield a usable output. It might be empty, malformed, or blocked by content filters. Check the server console for the full AI response details."
+        "AI response did not yield a usable output. It might be empty, malformed, or blocked by content filters. Check the server console for the full AI response details, including any 'finishReason' or 'candidates' information."
       );
     }
      // Basic validation of output structure (Zod already does this on prompt definition if schema is well-defined)
-    if (!output.suggestedDueDate || !Array.isArray(output.suggestedAssignees) || !Array.isArray(output.projectedWorkloadAfterAssignment)) {
-        console.error("AI response output is missing required fields. Output:", output, "Input:", input, "Full generationResponse:", generationResponse);
-        throw new Error("AI response is malformed or missing critical fields. Check server logs.");
+    if (!output.suggestedDueDate || !Array.isArray(output.suggestedAssignees) || output.suggestedAssignees.length === 0 || !Array.isArray(output.projectedWorkloadAfterAssignment)) {
+        console.error(
+            "AI response output is missing required fields or 'suggestedAssignees' is empty. Output:",
+            JSON.stringify(output, null, 2),
+            "Input:",
+            JSON.stringify(input, null, 2),
+            "Full generationResponse:",
+            JSON.stringify(generationResponse, null, 2)
+        );
+        throw new Error("AI response is malformed or missing critical fields. Check server logs for details on the output received from the AI.");
     }
+    
+    // Ensure all input team members are in the projected workload
+    if (output.projectedWorkloadAfterAssignment.length !== input.teamMembers.length) {
+        console.warn(
+            "AI response 'projectedWorkloadAfterAssignment' does not contain an entry for every input team member. Input count:",
+            input.teamMembers.length, "Output count:", output.projectedWorkloadAfterAssignment.length,
+            "Output:", JSON.stringify(output.projectedWorkloadAfterAssignment, null, 2)
+        );
+        // Optionally, you could try to fix this here, or throw an error.
+        // For now, we'll let it pass but log a warning.
+    }
+
 
     return output;
   }
 );
+
