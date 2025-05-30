@@ -1,6 +1,4 @@
 
-// Implemented Genkit flow for suggesting task due dates based on team workload.
-
 'use server';
 
 /**
@@ -65,12 +63,6 @@ Team Members (Name, Current Workload %):
 - {{{name}}}: {{{currentWorkload}}}%
 {{/each}}
 
-Consider the following when making your suggestions:
-- Task complexity and priority.
-- Current workload of each team member. Aim for balanced distribution and avoid overburdening.
-- Timely completion of the task.
-- The nature of the task and potential skills implied (though not explicitly provided, you can infer generally).
-
 Output format:
 Ensure your response is in JSON format, adhering to the provided output schema.
 The suggested due date should be in YYYY-MM-DD format.
@@ -106,11 +98,23 @@ const suggestDueDateFlow = ai.defineFlow(
     outputSchema: SuggestDueDateOutputSchema,
   },
   async input => {
-    const {output} = await suggestDueDatePrompt(input);
+    const generationResponse = await suggestDueDatePrompt(input);
+    const output = generationResponse.output;
+
     if (!output) {
-      console.error("AI response did not conform to the output schema for suggestDueDatePrompt. Input:", input, "Raw AI response object:", await suggestDueDatePrompt(input));
-      throw new Error("AI response did not conform to the expected output schema. The response might be empty, malformed, or blocked by content filters. Check the server console for more details.");
+      // Log the raw response if output is null/undefined.
+      // The `generationResponse` object might contain more details, e.g., safety ratings or finish reasons.
+      console.error(
+        "AI response output was null or undefined from suggestDueDatePrompt. Input:",
+        input,
+        "Full AI generationResponse object:",
+        generationResponse
+      );
+      throw new Error(
+        "AI response did not yield a usable output. It might be empty, malformed, or blocked by content filters. Check the server console for the full AI response details."
+      );
     }
     return output;
   }
 );
+
