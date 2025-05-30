@@ -18,12 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, UserMinus, UserPlus, Wand2 } from "lucide-react";
+import { Loader2, UserMinus, UserPlus, Wand2, Users, CalendarCheck, MessageSquareQuote, BarChart3 } from "lucide-react";
 import { suggestDueDate, type SuggestDueDateInput, type SuggestDueDateOutput } from "@/ai/flows/suggest-due-date";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { mockUsers } from "@/lib/mock-data";
 import { format, parseISO } from "date-fns";
+import { Separator } from "@/components/ui/separator";
 
 const teamMemberSchema = z.object({
   name: z.string().min(1, "Member name is required."),
@@ -70,7 +71,7 @@ export function AssistedAssignmentClientPage() {
       setAiResult(result);
       toast({
         title: "Suggestion Received",
-        description: "AI has suggested a due date.",
+        description: "AI has suggested a due date and assignee(s).",
       });
     } catch (error) {
       console.error("Error calling AI flow:", error);
@@ -93,7 +94,7 @@ export function AssistedAssignmentClientPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Task Details for AI Suggestion</CardTitle>
-          <CardDescription>Provide task information and team workload for an AI-powered due date suggestion.</CardDescription>
+          <CardDescription>Provide task information and team workload for an AI-powered due date and assignee suggestion.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -188,7 +189,7 @@ export function AssistedAssignmentClientPage() {
                 ) : (
                   <Wand2 className="mr-2 h-4 w-4" />
                 )}
-                Get Due Date Suggestion
+                Get AI Suggestion
               </Button>
             </form>
           </Form>
@@ -198,7 +199,7 @@ export function AssistedAssignmentClientPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>AI Suggestion</CardTitle>
-          <CardDescription>The AI's recommended due date and reasoning will appear here.</CardDescription>
+          <CardDescription>The AI's recommendations for due date, assignee(s), and workload will appear here.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -211,19 +212,37 @@ export function AssistedAssignmentClientPage() {
             <p className="text-muted-foreground text-center py-10">Submit the form to get an AI suggestion. Ensure your GOOGLE_API_KEY is set in .env if you're running locally.</p>
           )}
           {aiResult && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <h3 className="font-semibold text-lg text-primary">Suggested Due Date:</h3>
-                <p className="text-xl">{format(parseISO(aiResult.suggestedDueDate), "PPP")} ({aiResult.suggestedDueDate})</p>
+                <h3 className="font-semibold text-lg text-primary flex items-center"><CalendarCheck className="mr-2 h-5 w-5" />Suggested Due Date:</h3>
+                <p className="text-xl ml-7">{format(parseISO(aiResult.suggestedDueDate), "PPP")} ({aiResult.suggestedDueDate})</p>
+                <h4 className="font-medium mt-1 ml-7">Reasoning:</h4>
+                <p className="text-sm text-muted-foreground ml-7 whitespace-pre-wrap">{aiResult.reasoningForDueDate}</p>
               </div>
+
+              <Separator />
+
               <div>
-                <h3 className="font-semibold">Reasoning:</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">{aiResult.reasoning}</p>
+                <h3 className="font-semibold text-lg text-primary flex items-center"><Users className="mr-2 h-5 w-5" />Suggested Assignee(s):</h3>
+                {aiResult.suggestedAssignees.length > 0 ? (
+                  aiResult.suggestedAssignees.map((assignee, index) => (
+                    <div key={index} className="ml-7 mt-2 p-3 bg-secondary/30 rounded-md">
+                      <p className="text-lg font-medium">{assignee.name}</p>
+                      <h4 className="font-medium mt-1">Reasoning for Assignment:</h4>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{assignee.reasoningForAssignment}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground ml-7">AI did not suggest specific assignees.</p>
+                )}
               </div>
+              
+              <Separator />
+
               <div>
-                <h3 className="font-semibold">Projected Workload Allocation:</h3>
-                <ul className="list-disc list-inside text-muted-foreground">
-                  {aiResult.workloadAllocation.map(member => (
+                <h3 className="font-semibold text-lg text-primary flex items-center"><BarChart3 className="mr-2 h-5 w-5" />Projected Workload After Assignment:</h3>
+                <ul className="list-disc list-inside text-muted-foreground ml-7 mt-2 space-y-1">
+                  {aiResult.projectedWorkloadAfterAssignment.map(member => (
                     <li key={member.name}>{member.name}: {member.projectedWorkload}%</li>
                   ))}
                 </ul>
