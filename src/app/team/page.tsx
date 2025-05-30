@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Loader2, Users, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { mockUsers as initialMockUsers } from "@/lib/mock-data"; // Renamed to avoid conflict
+import { mockUsers } from "@/lib/mock-data"; // Direct import
 import type { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
@@ -42,13 +42,15 @@ const addMemberSchema = z.object({
 type AddMemberFormValues = z.infer<typeof addMemberSchema>;
 
 export default function TeamManagementPage() {
-  const { currentUser, isLoading: authIsLoading } = useAuth(); // Renamed isLoading to authIsLoading
+  const { currentUser, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [teamMembers, setTeamMembers] = useState<User[]>(initialMockUsers.filter(user => user.role === 'employee'));
+  // No longer using local state for teamMembers list. Will derive from mockUsers directly.
+  // const [teamMembers, setTeamMembers] = useState<User[]>(initialMockUsers.filter(user => user.role === 'employee'));
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // To force re-render after adding member
 
   const form = useForm<AddMemberFormValues>({
     resolver: zodResolver(addMemberSchema),
@@ -80,8 +82,7 @@ export default function TeamManagementPage() {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    setTeamMembers(prev => [...prev, newUser]);
-    initialMockUsers.push(newUser); // Add to the global mock data (for demo purposes)
+    mockUsers.push(newUser); // Add to the global mock data
 
     toast({
       title: "Member Added",
@@ -90,6 +91,7 @@ export default function TeamManagementPage() {
     form.reset();
     setIsAddMemberDialogOpen(false);
     setIsSubmitting(false);
+    setRefreshKey(prev => prev + 1); // Trigger re-render to show new member
   };
 
   if (authIsLoading || !currentUser || currentUser.role !== "manager") {
@@ -101,8 +103,11 @@ export default function TeamManagementPage() {
     );
   }
 
+  // Derive displayedTeamMembers directly from mockUsers on each render
+  const displayedTeamMembers = mockUsers.filter(user => user.role === 'employee');
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" key={refreshKey}>
       <PageHeader
         title="Manage Team"
         description="View and manage your team members."
@@ -169,9 +174,9 @@ export default function TeamManagementPage() {
           <CardDescription>List of all employees in your team.</CardDescription>
         </CardHeader>
         <CardContent>
-          {teamMembers.length > 0 ? (
+          {displayedTeamMembers.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {teamMembers.map(member => (
+              {displayedTeamMembers.map(member => (
                 <Card key={member.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4 flex items-center gap-4">
                     <Avatar className="h-12 w-12">
