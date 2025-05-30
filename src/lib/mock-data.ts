@@ -5,10 +5,10 @@ import { addDays, subDays, formatISO } from "date-fns";
 const today = new Date();
 
 export const mockUsers: User[] = [
-  { id: "user-1", name: "Priya Sharma", email: "priya.sharma@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=PS", currentWorkload: 30, role: "manager", designation: "Engineering Manager" },
-  { id: "user-2", name: "Rohan Mehra", email: "rohan.mehra@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=RM", currentWorkload: 70, role: "employee", designation: "Senior Software Engineer" },
-  { id: "user-3", name: "Aisha Khan", email: "aisha.khan@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=AK", currentWorkload: 50, role: "employee", designation: "Frontend Developer" },
-  { id: "user-4", name: "Vikram Singh", email: "vikram.singh@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=VS", currentWorkload: 20, role: "employee", designation: "QA Engineer" },
+  { id: "priya-mgr", name: "Priya Sharma", email: "priya.sharma@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=PS", currentWorkload: 30, role: "manager", designation: "Engineering Manager" },
+  { id: "rohan-dev", name: "Rohan Mehra", email: "rohan.mehra@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=RM", currentWorkload: 70, role: "employee", designation: "Senior Software Engineer" },
+  { id: "aisha-dev", name: "Aisha Khan", email: "aisha.khan@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=AK", currentWorkload: 50, role: "employee", designation: "Frontend Developer" },
+  { id: "vikram-qa", name: "Vikram Singh", email: "vikram.singh@gmail.com", avatarUrl: "https://placehold.co/100x100.png?text=VS", currentWorkload: 20, role: "employee", designation: "QA Engineer" },
 ];
 
 export const mockTasks: Task[] = [
@@ -19,7 +19,7 @@ export const mockTasks: Task[] = [
     status: "in-progress" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 7)),
-    assigneeId: "user-1", 
+    assigneeId: "priya-mgr", 
     progress: 60,
     dependencies: [],
     createdAt: formatISO(subDays(today, 3)),
@@ -32,7 +32,7 @@ export const mockTasks: Task[] = [
     status: "todo" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 14)),
-    assigneeId: "user-2",
+    assigneeId: "rohan-dev",
     progress: 0,
     dependencies: [],
     createdAt: formatISO(subDays(today, 5)),
@@ -45,7 +45,7 @@ export const mockTasks: Task[] = [
     status: "done" as TaskStatus,
     priority: "medium" as TaskPriority,
     dueDate: formatISO(subDays(today, 2)),
-    assigneeId: "user-3",
+    assigneeId: "aisha-dev",
     progress: 100,
     dependencies: [],
     createdAt: formatISO(subDays(today, 10)),
@@ -58,7 +58,7 @@ export const mockTasks: Task[] = [
     status: "blocked" as TaskStatus,
     priority: "medium" as TaskPriority,
     dueDate: formatISO(addDays(today, 21)),
-    assigneeId: "user-1",
+    assigneeId: "priya-mgr",
     progress: 10,
     dependencies: ["task-2"], 
     createdAt: formatISO(subDays(today, 1)),
@@ -83,7 +83,7 @@ export const mockTasks: Task[] = [
     status: "in-progress" as TaskStatus,
     priority: "high" as TaskPriority,
     dueDate: formatISO(addDays(today, 3)),
-    assigneeId: "user-4",
+    assigneeId: "vikram-qa",
     progress: 25,
     dependencies: ["task-3"],
     createdAt: formatISO(subDays(today, 2)),
@@ -96,7 +96,7 @@ export const mockTasks: Task[] = [
     status: "todo" as TaskStatus,
     priority: "medium" as TaskPriority,
     dueDate: formatISO(addDays(today, 5)),
-    assigneeId: "user-3",
+    assigneeId: "aisha-dev",
     progress: 0,
     dependencies: [],
     createdAt: formatISO(subDays(today, 1)),

@@ -141,6 +141,7 @@ export default function SettingsPage() {
                   </DialogContent>
                 </Dialog>
               </div>
+              <p className="text-muted-foreground">User ID: {currentUser.id}</p>
               <p className="text-muted-foreground">Name: {currentUser.name}</p>
               <p className="text-muted-foreground">Email: {currentUser.email}</p>
               <p className="text-muted-foreground">Role: {currentUser.role}</p>
