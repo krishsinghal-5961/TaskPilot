@@ -204,20 +204,20 @@ export default function TasksPage() {
     );
   }
 
+  const pageActions = currentUser.role === 'manager' ? (
+    <Button asChild>
+      <Link href="/tasks/new">
+        <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
+      </Link>
+    </Button>
+  ) : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={currentUser.role === 'manager' ? "All Tasks" : "My Tasks"}
         description="Manage and track all your project tasks."
-        actions={
-          currentUser.role === 'manager' && (
-            <Button asChild>
-              <Link href="/tasks/new">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Task
-              </Link>
-            </Button>
-          )
-        }
+        actions={pageActions}
       />
 
       <TaskFilterControls 
@@ -295,3 +295,4 @@ export default function TasksPage() {
     </div>
   );
 }
+
