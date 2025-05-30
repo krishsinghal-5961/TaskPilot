@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { UserProfile, UserRole } from "@/types"; // Assuming User is defined in types
+import type { UserProfile } from "@/types";
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { mockUsers } from "@/lib/mock-data"; // We'll use mock users

@@ -6,7 +6,7 @@ import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-// QueryClientProvider and ReactQueryDevtools removed
+// QueryClientProvider and ReactQueryDevtools removed as they were for react-query with Firebase
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
